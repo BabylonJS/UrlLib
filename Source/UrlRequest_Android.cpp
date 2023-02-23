@@ -34,6 +34,7 @@ namespace UrlLib
     public:
         void Open(UrlMethod method, const std::string& url)
         {
+            std::cout << "helloooo" << std::endl;
             m_method = method;
             Uri uri{Uri::Parse(url.data())};
             // If the URL string doesn't contain a scheme, the URI object's scheme will be null. We throw in this case
