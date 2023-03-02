@@ -92,6 +92,16 @@ namespace UrlLib
                         URL url{m_appPathOrUrl.data()};
 
                         URLConnection connection{url.OpenConnection()};
+
+                        // set request headers
+                        for (auto request : m_requestHeaders)
+                        {
+                            std::string key = request.first;
+                            std::string value = request.second;
+                            connection.SetRequestProperty(key, value);
+                        }
+                        m_requestHeaders.clear();
+
                         connection.Connect();
                         auto temp = connection.GetDoOutput();
                         std::cout << temp << std::endl;

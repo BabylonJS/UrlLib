@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 #include <arcana/threading/task.h>
+#include <unordered_map>
 
 namespace UrlLib
 {
@@ -17,6 +18,7 @@ namespace UrlLib
     enum class UrlMethod
     {
         Get,
+        Post
     };
 
     enum class UrlResponseType
@@ -49,6 +51,12 @@ namespace UrlLib
 
         arcana::task<void, std::exception_ptr> SendAsync();
 
+        void SetRequestBody(std::string requestBody);
+
+        void SetRequestHeader(std::string name, std::string value);
+
+        std::unordered_map<std::string, std::string> GetAllResponseHeaders() const;
+        
         UrlStatusCode StatusCode() const;
 
         std::string_view ResponseUrl() const;

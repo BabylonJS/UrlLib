@@ -21,6 +21,20 @@ namespace UrlLib
             m_cancellationSource.cancel();
         }
 
+        void SetRequestBody(std::string requestBody) {
+            m_requestBody = requestBody;
+        }
+
+        void SetRequestHeader(std::string name, std::string value)
+        {
+            m_requestHeaders[name] = value;
+        }
+
+        std::unordered_map<std::string, std::string> GetAllResponseHeaders() const
+        {
+            return m_headers;
+        }
+
         UrlResponseType ResponseType() const
         {
             return m_responseType;
@@ -77,5 +91,7 @@ namespace UrlLib
         std::string m_responseUrl{};
         std::string m_responseString{};
         std::unordered_map<std::string, std::string> m_headers;
+        std::string m_requestBody{};
+        std::unordered_map<std::string, std::string> m_requestHeaders;
     };
 }

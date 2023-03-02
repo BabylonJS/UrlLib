@@ -37,6 +37,21 @@ namespace UrlLib
         m_impl->ResponseType(value);
     }
 
+    void UrlRequest::SetRequestBody(std::string requestBody)
+    {
+        m_impl->SetRequestBody(requestBody);
+    }
+
+    void UrlRequest::SetRequestHeader(std::string key, std::string value)
+    {
+        m_impl->SetRequestHeader(key, value);
+    }
+
+    std::unordered_map<std::string, std::string> UrlRequest::GetAllResponseHeaders() const
+    {
+        return m_impl->GetAllResponseHeaders();
+    }
+
     arcana::task<void, std::exception_ptr> UrlRequest::SendAsync()
     {
         return m_impl->SendAsync();
