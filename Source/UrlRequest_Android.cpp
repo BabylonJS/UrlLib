@@ -4,7 +4,6 @@
 #include <android/asset_manager.h>
 #include <AndroidExtensions/Globals.h>
 #include <AndroidExtensions/JavaWrappers.h>
-#include <iostream>
 
 using namespace android::global;
 using namespace android::net;
