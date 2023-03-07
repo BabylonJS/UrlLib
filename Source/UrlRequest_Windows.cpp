@@ -102,7 +102,8 @@ namespace UrlLib
                     m_requestHeaders.clear();
 
                     // check the method 
-                    if (m_method == UrlMethod::Post) {
+                    if (m_method == UrlMethod::Post)
+                    {
                         // if post, set the content type
                         requestMessage.Content(Web::Http::HttpStringContent(
                             winrt::to_hstring(m_requestBody),
