@@ -102,7 +102,8 @@ namespace UrlLib
                         m_requestHeaders.clear();
 
                         // if this a POST request
-                        if (m_method == UrlMethod::Post) {
+                        if (m_method == UrlMethod::Post)
+                        {
                             ((HttpURLConnection)connection).SetRequestMethod("POST");
                             connection.SetDoOutput(true);
 
