@@ -91,7 +91,8 @@ namespace UrlLib
                     for (auto request : m_requestHeaders)
                     {
                         // content type needs to be set separately
-                        if (request.first == "Content-Type") {
+                        if (request.first == "Content-Type")
+                        {
                             contentType = request.second;
                         }
                         else
