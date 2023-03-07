@@ -95,8 +95,8 @@ namespace UrlLib
                         // set request headers
                         for (auto request : m_requestHeaders)
                         {
-                            std::string key = request.first;
-                            std::string value = request.second;
+                            const std::string& key = request.first;
+                            const std::string& value = request.second;
                             connection.SetRequestProperty(key, value);
                         }
                         m_requestHeaders.clear();
