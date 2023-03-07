@@ -60,7 +60,8 @@ namespace UrlLib
                 [mutableRequest setValue:@(request.second.data()) forHTTPHeaderField:@(request.first.data())];
             }
 
-            if(m_method == UrlMethod::Post) {
+            if (m_method == UrlMethod::Post)
+            {
                 mutableRequest.HTTPMethod = @"POST";
                 // set the body
                 NSString *stringBody = [NSString stringWithUTF8String:m_requestBody.data()];
