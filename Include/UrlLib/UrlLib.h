@@ -55,6 +55,8 @@ namespace UrlLib
 
         void SetRequestHeader(std::string name, std::string value);
 
+        std::optional<std::string> GetResponseHeader(const std::string& headerName) const;
+
         const std::unordered_map<std::string, std::string>& GetAllResponseHeaders() const;
         
         UrlStatusCode StatusCode() const;
@@ -64,8 +66,6 @@ namespace UrlLib
         std::string_view ResponseString() const;
 
         gsl::span<const std::byte> ResponseBuffer() const;
-
-        std::optional<std::string> GetResponseHeader(const std::string& headerName) const;
 
     private:
         class Impl;

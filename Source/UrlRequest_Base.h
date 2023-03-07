@@ -35,6 +35,17 @@ namespace UrlLib
             return m_headers;
         }
 
+        std::optional<std::string> GetResponseHeader(const std::string& headerName) const
+        {
+            const auto it = m_headers.find(ToLower(headerName.data()));
+            if (it == m_headers.end())
+            {
+                return {};
+            }
+
+            return it->second;
+        }
+
         UrlResponseType ResponseType() const
         {
             return m_responseType;
@@ -58,17 +69,6 @@ namespace UrlLib
         std::string_view ResponseString()
         {
             return m_responseString;
-        }
-
-        std::optional<std::string> GetResponseHeader(const std::string& headerName) const
-        {
-            const auto it = m_headers.find(ToLower(headerName.data()));
-            if (it == m_headers.end())
-            {
-                return {};
-            }
-
-            return it->second;
         }
 
     protected:

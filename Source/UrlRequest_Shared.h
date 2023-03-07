@@ -52,6 +52,11 @@ namespace UrlLib
         return m_impl->GetAllResponseHeaders();
     }
 
+    std::optional<std::string> UrlRequest::GetResponseHeader(const std::string& headerName) const
+    {
+        return m_impl->GetResponseHeader(headerName);
+    }
+
     arcana::task<void, std::exception_ptr> UrlRequest::SendAsync()
     {
         return m_impl->SendAsync();
@@ -75,10 +80,5 @@ namespace UrlLib
     gsl::span<const std::byte> UrlRequest::ResponseBuffer() const
     {
         return m_impl->ResponseBuffer();
-    }
-
-    std::optional<std::string> UrlRequest::GetResponseHeader(const std::string& headerName) const
-    {
-        return m_impl->GetResponseHeader(headerName);
     }
 }
