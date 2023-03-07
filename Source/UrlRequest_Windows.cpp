@@ -94,7 +94,8 @@ namespace UrlLib
                         if (request.first == "Content-Type") {
                             contentType = request.second;
                         }
-                        else {
+                        else
+                        {
                             requestMessage.Headers().Append(winrt::to_hstring(request.first), winrt::to_hstring(request.second));
                         }
                     }
