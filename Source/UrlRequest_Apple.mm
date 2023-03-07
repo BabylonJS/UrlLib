@@ -64,8 +64,8 @@ namespace UrlLib
             {
                 mutableRequest.HTTPMethod = @"POST";
                 // set the body
-                NSString *stringBody = [NSString stringWithUTF8String:m_requestBody.data()];
-                NSData *requestBodyData = [stringBody dataUsingEncoding:NSUTF8StringEncoding];
+                NSString* stringBody = [NSString stringWithUTF8String:m_requestBody.data()];
+                NSData* requestBodyData = [stringBody dataUsingEncoding:NSUTF8StringEncoding];
                 mutableRequest.HTTPBody = requestBodyData;
             }
 
