@@ -55,7 +55,8 @@ namespace UrlLib
             NSMutableURLRequest* mutableRequest{[request mutableCopy]};
 
             // set header requests
-            for (auto request: m_requestHeaders) {
+            for (auto request: m_requestHeaders)
+            {
                 [mutableRequest setValue:@(request.second.data()) forHTTPHeaderField:@(request.first.data())];
             }
 
