@@ -47,7 +47,7 @@ namespace UrlLib
         m_impl->SetRequestHeader(key, value);
     }
 
-    std::unordered_map<std::string, std::string> UrlRequest::GetAllResponseHeaders() const
+    const std::unordered_map<std::string, std::string>& UrlRequest::GetAllResponseHeaders() const
     {
         return m_impl->GetAllResponseHeaders();
     }

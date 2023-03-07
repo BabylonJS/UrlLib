@@ -30,7 +30,7 @@ namespace UrlLib
             m_requestHeaders[name] = value;
         }
 
-        std::unordered_map<std::string, std::string> GetAllResponseHeaders() const
+        const std::unordered_map<std::string, std::string>& GetAllResponseHeaders() const
         {
             return m_headers;
         }

@@ -55,7 +55,7 @@ namespace UrlLib
 
         void SetRequestHeader(std::string name, std::string value);
 
-        std::unordered_map<std::string, std::string> GetAllResponseHeaders() const;
+        const std::unordered_map<std::string, std::string>& GetAllResponseHeaders() const;
         
         UrlStatusCode StatusCode() const;
 
