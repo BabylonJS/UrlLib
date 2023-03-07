@@ -94,7 +94,8 @@ namespace UrlLib
                         if (request.first == "Content-Type") {
                             contentType = request.second;
                         }
-                        else {
+                        else
+                        {
                             requestMessage.Headers().Append(winrt::to_hstring(request.first), winrt::to_hstring(request.second));
                         }
                     }
@@ -102,7 +103,8 @@ namespace UrlLib
                     m_requestHeaders.clear();
 
                     // check the method 
-                    if (m_method == UrlMethod::Post) {
+                    if (m_method == UrlMethod::Post)
+                    {
                         // if post, set the content type
                         requestMessage.Content(Web::Http::HttpStringContent(
                             winrt::to_hstring(m_requestBody),

@@ -55,15 +55,17 @@ namespace UrlLib
             NSMutableURLRequest* mutableRequest{[request mutableCopy]};
 
             // set header requests
-            for (auto request: m_requestHeaders) {
+            for (auto request: m_requestHeaders)
+            {
                 [mutableRequest setValue:@(request.second.data()) forHTTPHeaderField:@(request.first.data())];
             }
 
-            if(m_method == UrlMethod::Post) {
+            if (m_method == UrlMethod::Post)
+            {
                 mutableRequest.HTTPMethod = @"POST";
                 // set the body
-                NSString *stringBody = [NSString stringWithUTF8String:m_requestBody.data()];
-                NSData *requestBodyData = [stringBody dataUsingEncoding:NSUTF8StringEncoding];
+                NSString* stringBody = [NSString stringWithUTF8String:m_requestBody.data()];
+                NSData* requestBodyData = [stringBody dataUsingEncoding:NSUTF8StringEncoding];
                 mutableRequest.HTTPBody = requestBodyData;
             }
 
