@@ -126,11 +126,11 @@ namespace UrlLib
                             for (auto&& iter : responseMessage.Headers())
                             {
                                 m_headers.insert(std::make_pair(winrt::to_string(iter.Key()), winrt::to_string(iter.Value())));
-
-                                std::string contentTypeValue = winrt::to_string(responseMessage.Content().Headers().ContentType().ToString());
-                                std::string contentTypeKey = "content-type";
-                                m_headers.insert(std::make_pair(contentTypeKey, contentTypeValue));
                             }
+                            // process the content type response header
+                            std::string contentTypeValue = winrt::to_string(responseMessage.Content().Headers().ContentType().ToString());
+                            std::string contentTypeKey = "content-type";
+                            m_headers.insert(std::make_pair(contentTypeKey, contentTypeValue));
 
                             switch (m_responseType)
                             {
