@@ -86,7 +86,7 @@ namespace UrlLib
                     requestMessage.RequestUri(m_uri);
                     requestMessage.Method(ConvertHttpMethod(m_method));
 
-                    std::string contentType = "";
+                    std::string contentType;
 
                     for (auto request : m_requestHeaders)
                     {
