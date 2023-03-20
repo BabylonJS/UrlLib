@@ -25,8 +25,8 @@ endif()
 if(ANDROID AND NOT TARGET AndroidExtensions)
     FetchContent_Declare(
         AndroidExtensions
-        GIT_REPOSITORY https://github.com/BabylonJS/AndroidExtensions.git
-        GIT_TAG        4a54e636bde25d4b9f1b02e2414ee642005ff244)
+        GIT_REPOSITORY https://github.com/lmaskati/AndroidExtensions.git
+        GIT_TAG        ce17306eecbc0a7527b3c4c1548ff41c8271446f)
 
     message(STATUS "Fetching AndroidExtensions")
     FetchContent_MakeAvailable(AndroidExtensions)
