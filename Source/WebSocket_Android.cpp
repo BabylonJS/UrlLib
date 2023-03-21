@@ -51,7 +51,7 @@ namespace UrlLib
         }
 
     private:     
-        WebSocket websocket;
+        WebSocketClient websocket;
 
         std::function<void(void)> open_callback;
         std::function<void(void)> close_callback;
