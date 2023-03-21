@@ -35,7 +35,7 @@ endif()
 
 if(ANDROID)
     set(ADDITIONAL_SOURCES
-        "Source/UrlRequest_Android.cpp
+        "Source/UrlRequest_Android.cpp"
         "Source/WebSocket_Android.cpp")
     set(ADDITIONAL_LIBRARIES
         PRIVATE android
