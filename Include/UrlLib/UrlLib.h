@@ -27,6 +27,14 @@ namespace UrlLib
         Buffer,
     };
 
+    enum class ReadyState
+    {
+        Connecting = 0,
+        Open = 1,
+        Closing = 2,
+        Closed = 3
+    };
+
     class UrlRequest final
     {
     public:
@@ -72,5 +80,38 @@ namespace UrlLib
         class ImplBase;
 
         std::shared_ptr<Impl> m_impl{};
+    };
+
+    class WebSocket final
+    {
+    public:
+        // add 4 std::functions
+        WebSocket();
+        ~WebSocket();
+
+        // Copy semantics
+        WebSocket(const WebSocket&);
+        WebSocket& operator=(const WebSocket&);
+
+        // Move semantics
+        WebSocket(WebSocket&&) noexcept;
+        WebSocket& operator=(WebSocket&&) noexcept;
+
+        ReadyState GetReadyState();
+        std::string GetURL();
+
+        void Open(std::string url,
+            std::function<void(void)> onopen,
+            std::function<void(void)> onclose,
+            std::function<void(std::string)> onmessage,
+            std::function<void(void)> onerror);
+        void Close();
+        void Send(std::string message);
+
+    private:
+        class WSImpl;
+        class WSImplBase;
+
+        std::shared_ptr<WSImpl> m_impl_ws{};
     };
 }

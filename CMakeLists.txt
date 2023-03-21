@@ -42,7 +42,10 @@ if(ANDROID)
         PRIVATE log)
 elseif(APPLE)
     set(ADDITIONAL_SOURCES
-        "Source/UrlRequest_Apple.mm")
+        "Source/UrlRequest_Apple.mm"
+        "Source/WebSocket_Apple.mm"
+        "Source/WebSocketImpl_Apple.h"
+        "Source/WebSocketImpl_Apple.m")
 elseif(UNIX)
     set(ADDITIONAL_SOURCES
         "Source/UrlRequest_Unix.cpp")
@@ -50,7 +53,8 @@ elseif(UNIX)
         PRIVATE curl)
 elseif(WIN32)
     set(ADDITIONAL_SOURCES
-        "Source/UrlRequest_Windows.cpp")
+        "Source/UrlRequest_Windows.cpp"
+        "Source/WebSocket_Windows.cpp")
     if(NOT WINDOWS_STORE)
         set(ADDITIONAL_LIBRARIES
             PUBLIC onecoreuap.lib)
@@ -63,6 +67,8 @@ set(SOURCES
     "Include/UrlLib/UrlLib.h"
     "Source/UrlRequest_Base.h"
     "Source/UrlRequest_Shared.h"
+    "Source/WebSocket_Base.h"
+    "Source/WebSocket_Shared.h"
     ${ADDITIONAL_SOURCES})
 
 add_library(UrlLib ${SOURCES})
