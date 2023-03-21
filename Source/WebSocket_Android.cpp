@@ -26,13 +26,26 @@ namespace UrlLib
             message_callback = onmessage;
             error_callback = onerror;
 
-            // init socket
-     
+            m_readyState = ReadyState::Connecting;
+            m_webSocket = new WebSocketClient(url);
         }
 
         void Send(std::string message)
-        { 
+        {
+            if (!m_webSocket)
+            {
+                throw std::runtime_error{"WebSocket is not initialized"};
+            }
 
+            if (m_readyState == ReadyState::Closed ||
+                m_readyState == ReadyState::Closing ||
+                m_readyState == ReadyState::Connecting)
+            {
+                //error_callback();
+                throw std::runtime_error{"WebSocket is not open"};
+            }
+
+            m_webSocket->Send(message);
         }
 
         void Close()
@@ -40,18 +53,16 @@ namespace UrlLib
             if (m_readyState == ReadyState::Closing ||
                 m_readyState == ReadyState::Closed)
             {
-                error_callback();
-
+                //error_callback();
                 throw std::runtime_error{"WebSocket is already Closing/Closed"};
             }
 
-            // close socket 
-
-            close_callback();
+            m_webSocket->Close();
+            //close_callback();
         }
 
     private:     
-
+        WebSocketClient* m_webSocket;
         std::function<void(void)> open_callback;
         std::function<void(void)> close_callback;
         std::function<void(std::string)> message_callback;
