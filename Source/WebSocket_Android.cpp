@@ -26,8 +26,9 @@ namespace UrlLib
             message_callback = onmessage;
             error_callback = onerror;
 
+            m_url = url;
             m_readyState = ReadyState::Connecting;
-            m_webSocket = new WebSocketClient(url);
+            m_webSocket = new WebSocketClient(url, open_callback_stored, close_callback_stored, message_callback, error_callback);
         }
 
         void Send(std::string message)
@@ -41,7 +42,7 @@ namespace UrlLib
                 m_readyState == ReadyState::Closing ||
                 m_readyState == ReadyState::Connecting)
             {
-                //error_callback();
+                error_callback();
                 throw std::runtime_error{"WebSocket is not open"};
             }
 
@@ -53,12 +54,11 @@ namespace UrlLib
             if (m_readyState == ReadyState::Closing ||
                 m_readyState == ReadyState::Closed)
             {
-                //error_callback();
+                error_callback();
                 throw std::runtime_error{"WebSocket is already Closing/Closed"};
             }
-
+            m_readyState = ReadyState::Closing;
             m_webSocket->Close();
-            //close_callback();
         }
 
     private:     
@@ -67,6 +67,15 @@ namespace UrlLib
         std::function<void(void)> close_callback;
         std::function<void(std::string)> message_callback;
         std::function<void(void)> error_callback;
+
+        std::function<void()> open_callback_stored = [this]() {
+            m_readyState = ReadyState::Open;
+            open_callback();
+        };
+        std::function<void()> close_callback_stored = [this]() {
+            m_readyState = ReadyState::Closed;
+            close_callback();
+        };
     };
 }
 
