@@ -85,7 +85,6 @@ namespace UrlLib
     class WebSocket final
     {
     public:
-        // add 4 std::functions
         WebSocket();
         ~WebSocket();
 

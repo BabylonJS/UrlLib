@@ -53,7 +53,6 @@
 }
 
 - (void)URLSession:(NSURLSession *)session webSocketTask:(NSURLSessionWebSocketTask *)webSocketTask didOpenWithProtocol:(NSString *)protocol  API_AVAILABLE(ios(13.0)){
-    // call the on open callback
     open_callback();
     // run the loop to receive messages
     [self receiveMessage];

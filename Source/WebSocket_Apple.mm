@@ -1,9 +1,6 @@
 #include "WebSocket_Base.h"
 #include "WebSocketImpl_Apple.h"
 
-#include <iostream>
-
-
 namespace UrlLib
 {
 class API_AVAILABLE(ios(13.0)) WebSocket::WSImpl : public WSImplBase
@@ -11,7 +8,6 @@ class API_AVAILABLE(ios(13.0)) WebSocket::WSImpl : public WSImplBase
     public:
         void Close()
         {
-            // set ready state to closing
             m_readyState = ReadyState::Closing;
             [webSocket close];
             m_readyState = ReadyState::Closed;
@@ -23,10 +19,8 @@ class API_AVAILABLE(ios(13.0)) WebSocket::WSImpl : public WSImplBase
                   std::function<void(std::string)> onmessage,
                   std::function<void(void)> onerror)
         {
-            // set ready state to connecting
             m_readyState = ReadyState::Connecting;
             
-            // store callbacks
             m_onOpen = onopen;
             m_onClose = onclose;
             m_onMessage = onmessage;

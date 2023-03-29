@@ -1,5 +1,4 @@
 #include "WebSocket_Base.h"
-
 #include <AndroidExtensions/Globals.h>
 #include <AndroidExtensions/JavaWrappers.h>
 
