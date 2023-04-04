@@ -14,6 +14,11 @@ namespace UrlLib
     class WebSocket::WSImpl : public WSImplBase
     {
     public:
+        ~WSImpl()
+        {
+            delete m_webSocket;
+        }
+
         void Open(std::string url,
                      std::function<void(void)> onopen,
                      std::function<void(void)> onclose,
