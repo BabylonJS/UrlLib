@@ -32,9 +32,9 @@ namespace UrlLib
 
                 arcana::create_task<std::exception_ptr>(dataWriter.StoreAsync())
                     .then(arcana::inline_scheduler, arcana::cancellation::none(), [this, dataWriter](int)
-                        {
-                            dataWriter.DetachStream();
-                        });
+                    {
+                        dataWriter.DetachStream();
+                    });
             }
             catch (winrt::hresult_error const& )
             {
@@ -43,10 +43,10 @@ namespace UrlLib
         }
 
         void Open(std::string url,
-                     std::function<void(void)> onopen,
-                     std::function<void(void)> onclose,
-                     std::function<void(std::string)> onmessage,
-                     std::function<void(void)> onerror)
+            std::function<void(void)> onopen,
+            std::function<void(void)> onclose,
+            std::function<void(std::string)> onmessage,
+            std::function<void(void)> onerror)
         {
             open_callback = onopen;
             close_callback = onclose;
@@ -66,10 +66,10 @@ namespace UrlLib
 
                 arcana::create_task<std::exception_ptr>(m_webSocket.ConnectAsync(Windows::Foundation::Uri{hURL}))
                     .then(arcana::inline_scheduler, arcana::cancellation::none(), [this]()
-                        {
-                            m_readyState = ReadyState::Open;
-                            open_callback();
-                        });
+                    {
+                        m_readyState = ReadyState::Open;
+                        open_callback();
+                    });
             }
             catch (hresult_error const& )
             {

@@ -36,10 +36,10 @@ namespace UrlLib
     }
     
     void WebSocket::Open(std::string url,
-                         std::function<void(void)> onopen,
-                         std::function<void(void)> onclose,
-                         std::function<void(std::string)> onmessage,
-                         std::function<void(void)> onerror)
+        std::function<void(void)> onopen,
+        std::function<void(void)> onclose,
+        std::function<void(std::string)> onmessage,
+        std::function<void(void)> onerror)
     {
         m_impl_ws->Open(url, onopen, onclose, onmessage, onerror);
     }

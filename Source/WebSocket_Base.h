@@ -7,24 +7,22 @@ namespace UrlLib
     class WebSocket::WSImplBase
     {
     public:
-         ~WSImplBase()
-         {
-         }
+        ~WSImplBase()
+        {
+        }
 
-         std::string GetURL()
-         {
-             return m_url;
-         }
+        std::string GetURL()
+        {
+            return m_url;
+        }
 
-         ReadyState GetReadyState()
-         {
-             return m_readyState;
-         }
+        ReadyState GetReadyState()
+        {
+            return m_readyState;
+        }
     
-
-     protected:
-
+    protected:
         std::string m_url;
         ReadyState m_readyState{ReadyState::Closed};
-     };
- }
+    };
+}
