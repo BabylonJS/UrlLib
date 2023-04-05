@@ -50,7 +50,6 @@
         if (error) 
         {
             error_callback();
-            
         } else if (message.type == NSURLSessionWebSocketMessageTypeString) 
         {
             message_callback(message.string);
@@ -64,7 +63,6 @@
     open_callback();
     // run the loop to receive messages
     [self receiveMessage];
-    
 }
 
 - (void)URLSession:(NSURLSession *)session webSocketTask:(NSURLSessionWebSocketTask *)webSocketTask didCloseWithCloseCode:(NSInteger)code reason:(NSData *)reason  API_AVAILABLE(ios(13.0))

@@ -20,10 +20,10 @@ namespace UrlLib
         }
 
         void Open(std::string url,
-                     std::function<void(void)> onopen,
-                     std::function<void(void)> onclose,
-                     std::function<void(std::string)> onmessage,
-                     std::function<void(void)> onerror)
+            std::function<void(void)> onopen,
+            std::function<void(void)> onclose,
+            std::function<void(std::string)> onmessage,
+            std::function<void(void)> onerror)
         {
             open_callback = onopen;
             close_callback = onclose;
@@ -71,12 +71,15 @@ namespace UrlLib
         std::function<void(void)> close_callback;
         std::function<void(std::string)> message_callback;
         std::function<void(void)> error_callback;
-
-        std::function<void()> open_callback_stored = [this]() {
+        
+        std::function<void()> open_callback_stored = [this]()
+        {
             m_readyState = ReadyState::Open;
             open_callback();
         };
-        std::function<void()> close_callback_stored = [this]() {
+
+        std::function<void()> close_callback_stored = [this]()
+        {
             m_readyState = ReadyState::Closed;
             close_callback();
         };
