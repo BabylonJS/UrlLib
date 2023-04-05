@@ -46,7 +46,6 @@ class API_AVAILABLE(ios(13.0)) WebSocket::WSImpl : public WSImplBase
                 m_onError();
             };
             
-            // init websocket
             webSocket = [[WebSocket_Impl alloc] init];
             NSString *messageString = @(url.data());
             [webSocket open:messageString on_open:openCallback on_close:closeCallback on_message:messageCallback on_error:errorCallback];

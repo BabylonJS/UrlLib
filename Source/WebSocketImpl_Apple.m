@@ -50,7 +50,8 @@
         if (error) 
         {
             error_callback();
-        } else if (message.type == NSURLSessionWebSocketMessageTypeString) 
+        }
+        else if (message.type == NSURLSessionWebSocketMessageTypeString)
         {
             message_callback(message.string);
         }
