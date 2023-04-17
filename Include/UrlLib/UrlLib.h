@@ -100,10 +100,10 @@ namespace UrlLib
         std::string GetURL();
 
         void Open(std::string url,
-            std::function<void(void)> onopen,
-            std::function<void(void)> onclose,
+            std::function<void()> onopen,
+            std::function<void()> onclose,
             std::function<void(std::string)> onmessage,
-            std::function<void(void)> onerror);
+            std::function<void()> onerror);
         void Close();
         void Send(std::string message);
 

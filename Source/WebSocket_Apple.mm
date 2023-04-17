@@ -14,10 +14,10 @@ class API_AVAILABLE(ios(13.0)) WebSocket::WSImpl : public WSImplBase
         }
         
         void Open(std::string url,
-            std::function<void(void)> onopen,
-            std::function<void(void)> onclose,
+            std::function<void()> onopen,
+            std::function<void()> onclose,
             std::function<void(std::string)> onmessage,
-            std::function<void(void)> onerror)
+            std::function<void()> onerror)
         {
             m_readyState = ReadyState::Connecting;
             
@@ -58,10 +58,10 @@ class API_AVAILABLE(ios(13.0)) WebSocket::WSImpl : public WSImplBase
  
     private:
         WebSocket_Impl *webSocket;
-        std::function<void(void)> m_onOpen;
-        std::function<void(void)> m_onClose;
+        std::function<void()> m_onOpen;
+        std::function<void()> m_onClose;
         std::function<void(std::string)> m_onMessage;
-        std::function<void(void)> m_onError;
+        std::function<void()> m_onError;
     };
 }
 
