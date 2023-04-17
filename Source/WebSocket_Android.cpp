@@ -47,7 +47,6 @@ namespace UrlLib
                 m_readyState == ReadyState::Connecting)
             {
                 error_callback();
-                throw std::runtime_error{"WebSocket is not open"};
             }
 
             m_webSocket->Send(message);
@@ -59,7 +58,6 @@ namespace UrlLib
                 m_readyState == ReadyState::Closed)
             {
                 error_callback();
-                throw std::runtime_error{"WebSocket is already Closing/Closed"};
             }
             m_readyState = ReadyState::Closing;
             m_webSocket->Close();
