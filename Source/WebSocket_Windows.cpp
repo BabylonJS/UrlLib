@@ -17,13 +17,6 @@ namespace UrlLib
         
         void Send(std::string message)
         {
-            if (m_readyState == ReadyState::Closed ||
-                m_readyState == ReadyState::Closing ||
-                m_readyState == ReadyState::Connecting)
-            {
-                error_callback();
-            }
-
             try
             {
                 Windows::Storage::Streams::DataWriter dataWriter{m_webSocket.OutputStream()};
@@ -53,7 +46,6 @@ namespace UrlLib
             error_callback = onerror;
 
             m_url = url;
-            m_readyState = ReadyState::Connecting;
 
             m_webSocket.Control().MessageType(Windows::Networking::Sockets::SocketMessageType::Utf8);
             m_messageReceivedEventToken = m_webSocket.MessageReceived({this, &WebSocket::WSImpl::OnMessageReceived});
@@ -66,7 +58,6 @@ namespace UrlLib
                 arcana::create_task<std::exception_ptr>(m_webSocket.ConnectAsync(Windows::Foundation::Uri{hURL}))
                     .then(arcana::inline_scheduler, arcana::cancellation::none(), [this]()
                     {
-                        m_readyState = ReadyState::Open;
                         open_callback();
                     });
             }
@@ -78,31 +69,17 @@ namespace UrlLib
 
         void Close()
         {
-            if (m_readyState == ReadyState::Closing ||
-                m_readyState == ReadyState::Closed)
-            {
-                error_callback();
-            }
-
-            m_readyState = ReadyState::Closing;
             m_webSocket.Close();
         }
 
     private:
         void OnWebSocketClosed(Windows::Networking::Sockets::IWebSocket const& /* sender */, Windows::Networking::Sockets::WebSocketClosedEventArgs const& args)
         {
-            m_readyState = ReadyState::Closed;
             close_callback();
         }
 
         void OnMessageReceived(Windows::Networking::Sockets::MessageWebSocket const& /* sender */, Windows::Networking::Sockets::MessageWebSocketMessageReceivedEventArgs const& args)
         {
-            if (m_readyState == ReadyState::Closed ||
-                m_readyState == ReadyState::Closing)
-            {
-                error_callback();
-            }
-
             try
             {
                 Windows::Storage::Streams::DataReader dataReader{args.GetDataReader()};

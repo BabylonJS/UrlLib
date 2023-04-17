@@ -15,14 +15,8 @@ namespace UrlLib
         {
             return m_url;
         }
-
-        ReadyState GetReadyState()
-        {
-            return m_readyState;
-        }
     
     protected:
         std::string m_url;
-        ReadyState m_readyState{ReadyState::Closed};
     };
 }

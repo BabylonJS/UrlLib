@@ -27,14 +27,6 @@ namespace UrlLib
         Buffer,
     };
 
-    enum class ReadyState
-    {
-        Connecting = 0,
-        Open = 1,
-        Closing = 2,
-        Closed = 3
-    };
-
     class UrlRequest final
     {
     public:
@@ -96,7 +88,6 @@ namespace UrlLib
         WebSocket(WebSocket&&) noexcept;
         WebSocket& operator=(WebSocket&&) noexcept;
 
-        ReadyState GetReadyState();
         std::string GetURL();
 
         void Open(std::string url,

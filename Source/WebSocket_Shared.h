@@ -15,11 +15,6 @@ namespace UrlLib
     WebSocket::WebSocket(WebSocket&&) noexcept = default;
     WebSocket& WebSocket::operator=(WebSocket&&) noexcept = default;
     
-    ReadyState WebSocket::GetReadyState()
-    {
-        return m_impl_ws->GetReadyState();
-    }
-    
     std::string WebSocket::GetURL()
     {
         return m_impl_ws->GetURL();

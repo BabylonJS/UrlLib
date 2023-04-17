@@ -8,9 +8,7 @@ class API_AVAILABLE(ios(13.0)) WebSocket::WSImpl : public WSImplBase
     public:
         void Close()
         {
-            m_readyState = ReadyState::Closing;
             [webSocket close];
-            m_readyState = ReadyState::Closed;
         }
         
         void Open(std::string url,
@@ -19,8 +17,6 @@ class API_AVAILABLE(ios(13.0)) WebSocket::WSImpl : public WSImplBase
             std::function<void(std::string)> onmessage,
             std::function<void()> onerror)
         {
-            m_readyState = ReadyState::Connecting;
-            
             m_onOpen = onopen;
             m_onClose = onclose;
             m_onMessage = onmessage;
@@ -29,7 +25,6 @@ class API_AVAILABLE(ios(13.0)) WebSocket::WSImpl : public WSImplBase
             // handle callbacks
             void (^openCallback)() =  [this]()
             {
-                m_readyState = ReadyState::Open;
                 m_onOpen();
             };
             void (^closeCallback)() =  [this]()
