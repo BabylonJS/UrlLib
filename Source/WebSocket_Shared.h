@@ -1,7 +1,7 @@
 namespace UrlLib
 {
     WebSocket::WebSocket()
-    : m_impl_ws{std::make_unique<WebSocket::WSImpl>()}
+    : m_impl{std::make_unique<WebSocket::Impl>()}
     {
     }
     
@@ -17,17 +17,17 @@ namespace UrlLib
     
     std::string WebSocket::GetURL()
     {
-        return m_impl_ws->GetURL();
+        return m_impl->GetURL();
     }
     
     void WebSocket::Close()
     {
-        m_impl_ws->Close();
+        m_impl->Close();
     }
     
     void WebSocket::Send(std::string message)
     {
-        m_impl_ws->Send(message);
+        m_impl->Send(message);
     }
     
     void WebSocket::Open(std::string url,
@@ -36,6 +36,6 @@ namespace UrlLib
         std::function<void(std::string)> onmessage,
         std::function<void()> onerror)
     {
-        m_impl_ws->Open(url, onopen, onclose, onmessage, onerror);
+        m_impl->Open(url, onopen, onclose, onmessage, onerror);
     }
 }

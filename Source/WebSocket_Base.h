@@ -4,10 +4,10 @@
 
 namespace UrlLib
 {
-    class WebSocket::WSImplBase
+    class WebSocket::ImplBase
     {
     public:
-        ~WSImplBase()
+        ~ImplBase()
         {
         }
 

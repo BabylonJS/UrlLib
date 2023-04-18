@@ -11,7 +11,7 @@ using namespace java::websocket;
 
 namespace UrlLib
 {
-    class WebSocket::WSImpl : public WSImplBase
+    class WebSocket::Impl : public ImplBase
     {
     public:
         void Open(std::string url,

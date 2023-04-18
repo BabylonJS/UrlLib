@@ -3,7 +3,7 @@
 
 namespace UrlLib
 {
-class API_AVAILABLE(ios(13.0)) WebSocket::WSImpl : public WSImplBase
+class API_AVAILABLE(ios(13.0)) WebSocket::Impl : public ImplBase
     {
     public:
         void Close()

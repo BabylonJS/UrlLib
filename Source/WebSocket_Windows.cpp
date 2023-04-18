@@ -11,7 +11,7 @@ namespace UrlLib
 {
     using namespace winrt;
 
-    class WebSocket::WSImpl : public WSImplBase
+    class WebSocket::Impl : public ImplBase
     {
     public:
         
@@ -48,8 +48,8 @@ namespace UrlLib
             m_url = url;
 
             m_webSocket.Control().MessageType(Windows::Networking::Sockets::SocketMessageType::Utf8);
-            m_messageReceivedEventToken = m_webSocket.MessageReceived({this, &WebSocket::WSImpl::OnMessageReceived});
-            m_closedEventToken = m_webSocket.Closed({this, &WebSocket::WSImpl::OnWebSocketClosed});
+            m_messageReceivedEventToken = m_webSocket.MessageReceived({this, &WebSocket::Impl::OnMessageReceived});
+            m_closedEventToken = m_webSocket.Closed({this, &WebSocket::Impl::OnWebSocketClosed});
 
             try
             {

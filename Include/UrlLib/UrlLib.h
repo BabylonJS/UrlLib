@@ -99,9 +99,9 @@ namespace UrlLib
         void Send(std::string message);
 
     private:
-        class WSImpl;
-        class WSImplBase;
+        class Impl;
+        class ImplBase;
 
-        std::shared_ptr<WSImpl> m_impl_ws{};
+        std::shared_ptr<Impl> m_impl{};
     };
 }
