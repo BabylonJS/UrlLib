@@ -23,12 +23,19 @@ namespace UrlLib
                 dataWriter.WriteString(winrt::to_hstring(message));
 
                 arcana::create_task<std::exception_ptr>(dataWriter.StoreAsync())
-                    .then(arcana::inline_scheduler, arcana::cancellation::none(), [this, dataWriter](int)
+                    .then(arcana::inline_scheduler, m_cancellationSource, [this, dataWriter](int)
                     {
                         dataWriter.DetachStream();
+                    })
+                    .then(arcana::inline_scheduler, m_cancellationSource, [this](const arcana::expected<void, std::exception_ptr>& result)
+                    {
+                        if (result.has_error())
+                        {
+                            error_callback();
+                        }
                     });
             }
-            catch (winrt::hresult_error const& )
+            catch (winrt::hresult_error const&)
             {
                 error_callback();
             }
@@ -56,12 +63,19 @@ namespace UrlLib
                 hstring hURL = to_hstring(m_url);
 
                 arcana::create_task<std::exception_ptr>(m_webSocket.ConnectAsync(Windows::Foundation::Uri{hURL}))
-                    .then(arcana::inline_scheduler, arcana::cancellation::none(), [this]()
+                    .then(arcana::inline_scheduler, m_cancellationSource, [this]()
                     {
                         open_callback();
+                    })
+                    .then(arcana::inline_scheduler, m_cancellationSource, [this](const arcana::expected<void, std::exception_ptr>& result)
+                    {
+                        if (result.has_error())
+                        {
+                            error_callback();
+                        }
                     });
             }
-            catch (hresult_error const& )
+            catch (hresult_error const&)
             {
                 error_callback();
             }
@@ -95,6 +109,7 @@ namespace UrlLib
         }
        
         Windows::Networking::Sockets::MessageWebSocket m_webSocket;
+        arcana::cancellation_source m_cancellationSource{};
 
         std::function<void()> open_callback;
         std::function<void()> close_callback;
