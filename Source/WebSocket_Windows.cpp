@@ -52,15 +52,13 @@ namespace UrlLib
             message_callback = onmessage;
             error_callback = onerror;
 
-            m_url = url;
-
             m_webSocket.Control().MessageType(Windows::Networking::Sockets::SocketMessageType::Utf8);
             m_messageReceivedEventToken = m_webSocket.MessageReceived({this, &WebSocket::Impl::OnMessageReceived});
             m_closedEventToken = m_webSocket.Closed({this, &WebSocket::Impl::OnWebSocketClosed});
 
             try
             {
-                hstring hURL = to_hstring(m_url);
+                hstring hURL = to_hstring(url);
 
                 arcana::create_task<std::exception_ptr>(m_webSocket.ConnectAsync(Windows::Foundation::Uri{hURL}))
                     .then(arcana::inline_scheduler, m_cancellationSource, [this]()

@@ -20,7 +20,6 @@ namespace UrlLib
             std::function<void(std::string)> onmessage,
             std::function<void()> onerror)
         {
-            m_url = url;
             m_webSocket = std::make_unique<WebSocketClient>(url, onopen, onclose, onmessage, onerror);
         }
 
