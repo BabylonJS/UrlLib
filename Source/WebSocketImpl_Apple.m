@@ -1,6 +1,6 @@
 #import <WebSocketImpl_Apple.h>
 
-@interface WebSocket_Impl() <NSURLSessionWebSocketDelegate>
+@interface WebSocket_ObjC() <NSURLSessionWebSocketDelegate>
 {
     NSURLSessionWebSocketTask *webSocketTask API_AVAILABLE(ios(13.0));
     NSURLSession *session;
@@ -8,15 +8,15 @@
     void (^open_callback)();
     void (^close_callback)();
     void (^error_callback)();
-    void (^message_callback)();
+    void (^message_callback)(NSString *);
 }
 @end
 
-@implementation WebSocket_Impl
+@implementation WebSocket_ObjC
 
 -(void) open:(NSString *)url on_open:(void (^)(void))on_open on_close:(void (^)(void))on_close on_message:(void (^)(NSString *))on_message on_error:(void (^)(void))on_error
 {
-    session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:self delegateQueue:[NSOperationQueue mainQueue]];
+    session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:self delegateQueue:[[NSOperationQueue alloc] init]];
     open_callback = on_open;
     close_callback = on_close;
     error_callback = on_error;

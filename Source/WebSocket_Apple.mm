@@ -6,42 +6,32 @@ namespace UrlLib
 class API_AVAILABLE(ios(13.0)) WebSocket::Impl : public ImplBase
     {
     public:
-        void Close()
-        {
-            [webSocket close];
-        }
-        
         void Open(std::string url,
             std::function<void()> onopen,
             std::function<void()> onclose,
             std::function<void(std::string)> onmessage,
             std::function<void()> onerror)
         {
-            m_onOpen = onopen;
-            m_onClose = onclose;
-            m_onMessage = onmessage;
-            m_onError = onerror;
-            
             // handle callbacks
-            void (^openCallback)() =  [this]()
+            void (^openCallback)() =  [onopen]()
             {
-                m_onOpen();
+                onopen();
             };
-            void (^closeCallback)() =  [this]()
+            void (^closeCallback)() =  [onclose]()
             {
-                m_onClose();
+                onclose();
             };
-            void (^messageCallback)(NSString* messageStr) =  [this](NSString* messageStr)
+            void (^messageCallback)(NSString* messageStr) =  [onmessage](NSString* messageStr)
             {
                 std::string cppString( [messageStr UTF8String] );
-                m_onMessage(cppString);
+                onmessage(cppString);
             };
-            void (^errorCallback)() =  [this]()
+            void (^errorCallback)() =  [onerror]()
             {
-                m_onError();
+                onerror();
             };
             
-            webSocket = [[WebSocket_Impl alloc] init];
+            webSocket = [[WebSocket_ObjC alloc] init];
             NSString *messageString = @(url.data());
             [webSocket open:messageString on_open:openCallback on_close:closeCallback on_message:messageCallback on_error:errorCallback];
         }
@@ -50,13 +40,14 @@ class API_AVAILABLE(ios(13.0)) WebSocket::Impl : public ImplBase
         {
             [webSocket sendMessage:@(message.data())];
         }
+
+        void Close()
+        {
+            [webSocket close];
+        }
  
     private:
-        WebSocket_Impl *webSocket;
-        std::function<void()> m_onOpen;
-        std::function<void()> m_onClose;
-        std::function<void(std::string)> m_onMessage;
-        std::function<void()> m_onError;
+        WebSocket_ObjC *webSocket;
     };
 }
 
