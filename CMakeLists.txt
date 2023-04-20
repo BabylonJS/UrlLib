@@ -45,8 +45,8 @@ elseif(APPLE)
     set(ADDITIONAL_SOURCES
         "Source/UrlRequest_Apple.mm"
         "Source/WebSocket_Apple.mm"
-        "Source/WebSocketImpl_Apple.h"
-        "Source/WebSocketImpl_Apple.m")
+        "Source/WebSocket_Apple_ObjC.h"
+        "Source/WebSocket_Apple_ObjC.m")
 elseif(UNIX)
     set(ADDITIONAL_SOURCES
         "Source/UrlRequest_Unix.cpp")

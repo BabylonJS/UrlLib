@@ -1,4 +1,4 @@
-#import <WebSocketImpl_Apple.h>
+#import <WebSocket_Apple_ObjC.h>
 
 @interface WebSocket_ObjC() <NSURLSessionWebSocketDelegate>
 {

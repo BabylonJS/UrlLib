@@ -1,5 +1,5 @@
 #include "WebSocket_Base.h"
-#include "WebSocketImpl_Apple.h"
+#include "WebSocket_Apple_ObjC.h"
 
 namespace UrlLib
 {
