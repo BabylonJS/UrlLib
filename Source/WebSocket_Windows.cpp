@@ -14,6 +14,10 @@ namespace UrlLib
     class WebSocket::Impl : public ImplBase
     {
     public:
+        Impl(std::string url, std::function<void()> onOpen, std::function<void()> onClose, std::function<void(std::string)> onMessage, std::function<void()> onError)
+        : ImplBase(url, onOpen, onClose, onMessage, onError)
+        {
+        }
         
         void Send(std::string message)
         {
@@ -31,51 +35,42 @@ namespace UrlLib
                     {
                         if (result.has_error())
                         {
-                            error_callback();
+                            m_onError();
                         }
                     });
             }
             catch (winrt::hresult_error const&)
             {
-                error_callback();
+                m_onError();
             }
         }
 
-        void Open(std::string url,
-            std::function<void()> onopen,
-            std::function<void()> onclose,
-            std::function<void(std::string)> onmessage,
-            std::function<void()> onerror)
+        void Open()
         {
-            open_callback = onopen;
-            close_callback = onclose;
-            message_callback = onmessage;
-            error_callback = onerror;
-
             m_webSocket.Control().MessageType(Windows::Networking::Sockets::SocketMessageType::Utf8);
             m_messageReceivedEventToken = m_webSocket.MessageReceived({this, &WebSocket::Impl::OnMessageReceived});
             m_closedEventToken = m_webSocket.Closed({this, &WebSocket::Impl::OnWebSocketClosed});
 
             try
             {
-                hstring hURL = to_hstring(url);
+                hstring hURL = to_hstring(m_url);
 
                 arcana::create_task<std::exception_ptr>(m_webSocket.ConnectAsync(Windows::Foundation::Uri{hURL}))
                     .then(arcana::inline_scheduler, m_cancellationSource, [this]()
                     {
-                        open_callback();
+                        m_onOpen();
                     })
                     .then(arcana::inline_scheduler, m_cancellationSource, [this](const arcana::expected<void, std::exception_ptr>& result)
                     {
                         if (result.has_error())
                         {
-                            error_callback();
+                            m_onError();
                         }
                     });
             }
             catch (hresult_error const&)
             {
-                error_callback();
+                m_onError();
             }
         }
 
@@ -87,7 +82,7 @@ namespace UrlLib
     private:
         void OnWebSocketClosed(Windows::Networking::Sockets::IWebSocket const& /* sender */, Windows::Networking::Sockets::WebSocketClosedEventArgs const& args)
         {
-            close_callback();
+            m_onClose();
         }
 
         void OnMessageReceived(Windows::Networking::Sockets::MessageWebSocket const& /* sender */, Windows::Networking::Sockets::MessageWebSocketMessageReceivedEventArgs const& args)
@@ -98,21 +93,16 @@ namespace UrlLib
                 dataReader.UnicodeEncoding(Windows::Storage::Streams::UnicodeEncoding::Utf8);
                 std::string message = winrt::to_string(dataReader.ReadString(dataReader.UnconsumedBufferLength()));
 
-                message_callback(message);
+                m_onMessage(message);
             }
             catch (winrt::hresult_error const& )
             {
-                error_callback();
+                m_onError();
             }
         }
        
         Windows::Networking::Sockets::MessageWebSocket m_webSocket;
         arcana::cancellation_source m_cancellationSource{};
-
-        std::function<void()> open_callback;
-        std::function<void()> close_callback;
-        std::function<void(std::string)> message_callback;
-        std::function<void()> error_callback;
 
         event_token m_messageReceivedEventToken;
         event_token m_closedEventToken;
