@@ -4,25 +4,33 @@
 {
     NSURLSessionWebSocketTask *webSocketTask API_AVAILABLE(ios(13.0));
     NSURLSession *session;
+    NSString *websocketUrl;
     // store callbacks here
-    void (^open_callback)();
-    void (^close_callback)();
-    void (^error_callback)();
-    void (^message_callback)(NSString *);
+    void (^openCallback)();
+    void (^closeCallback)();
+    void (^messageCallback)(NSString *);
+    void (^errorCallback)();
 }
 @end
 
 @implementation WebSocket_ObjC
 
--(void) open:(NSString *)url on_open:(void (^)(void))on_open on_close:(void (^)(void))on_close on_message:(void (^)(NSString *))on_message on_error:(void (^)(void))on_error
+- (instancetype)initWithCallbacks:(NSString *)url onOpen:(void (^)(void))onOpen onClose:(void (^)(void))onClose onMessage:(void (^)(NSString *))onMessage onError:(void (^)(void))onError
+{
+    self = [super init];
+    websocketUrl = url;
+    openCallback = onOpen;
+    closeCallback = onClose;
+    messageCallback = onMessage;
+    errorCallback = onError;
+    return self;
+}
+
+
+-(void) open
 {
     session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:self delegateQueue:[[NSOperationQueue alloc] init]];
-    open_callback = on_open;
-    close_callback = on_close;
-    error_callback = on_error;
-    message_callback = on_message;
-    
-    webSocketTask = [session webSocketTaskWithURL:[NSURL URLWithString:url]];
+    webSocketTask = [session webSocketTaskWithURL:[NSURL URLWithString:websocketUrl]];
     [webSocketTask resume];
 }
 
@@ -38,7 +46,7 @@
     {
         if (error) 
         {
-            error_callback();
+            errorCallback();
         } 
     }];
 }
@@ -49,11 +57,11 @@
     {
         if (error) 
         {
-            error_callback();
+            errorCallback();
         }
         else if (message.type == NSURLSessionWebSocketMessageTypeString)
         {
-            message_callback(message.string);
+            messageCallback(message.string);
         }
         [self receiveMessage];
     }];
@@ -61,7 +69,7 @@
 
 - (void)URLSession:(NSURLSession *)session webSocketTask:(NSURLSessionWebSocketTask *)webSocketTask didOpenWithProtocol:(NSString *)protocol  API_AVAILABLE(ios(13.0))
 {
-    open_callback();
+    openCallback();
     // run the loop to receive messages
     [self receiveMessage];
 }
@@ -76,7 +84,7 @@
     webSocketTask = nil;
     [session invalidateAndCancel];
     session = nil;
-    close_callback();
+    closeCallback();
 }
 
 @end

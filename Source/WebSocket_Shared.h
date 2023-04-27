@@ -1,7 +1,7 @@
 namespace UrlLib
 {
-    WebSocket::WebSocket()
-    : m_impl{std::make_unique<WebSocket::Impl>()}
+    WebSocket::WebSocket(std::string url, std::function<void()> onOpen, std::function<void()> onClose, std::function<void(std::string)> onMessage, std::function<void()> onError)
+    : m_impl{std::make_unique<WebSocket::Impl>(url, onOpen, onClose, onMessage, onError)}
     {
     }
 
@@ -25,12 +25,8 @@ namespace UrlLib
         m_impl->Send(message);
     }
 
-    void WebSocket::Open(std::string url,
-        std::function<void()> onopen,
-        std::function<void()> onclose,
-        std::function<void(std::string)> onmessage,
-        std::function<void()> onerror)
+    void WebSocket::Open()
     {
-        m_impl->Open(url, onopen, onclose, onmessage, onerror);
+        m_impl->Open();
     }
 }

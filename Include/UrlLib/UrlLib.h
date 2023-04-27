@@ -77,7 +77,7 @@ namespace UrlLib
     class WebSocket final
     {
     public:
-        WebSocket();
+        WebSocket(std::string url, std::function<void()> onOpen, std::function<void()> onClose, std::function<void(std::string)> onMessage, std::function<void()> onError);
         ~WebSocket();
 
         // Copy semantics
@@ -90,11 +90,7 @@ namespace UrlLib
 
         std::string GetURL();
 
-        void Open(std::string url,
-            std::function<void()> onopen,
-            std::function<void()> onclose,
-            std::function<void(std::string)> onmessage,
-            std::function<void()> onerror);
+        void Open();
         void Close();
         void Send(std::string message);
 

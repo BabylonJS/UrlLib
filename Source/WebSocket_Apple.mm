@@ -6,34 +6,33 @@ namespace UrlLib
 class API_AVAILABLE(ios(13.0)) WebSocket::Impl : public ImplBase
     {
     public:
-        void Open(std::string url,
-            std::function<void()> onopen,
-            std::function<void()> onclose,
-            std::function<void(std::string)> onmessage,
-            std::function<void()> onerror)
+        Impl(std::string url, std::function<void()> onOpen, std::function<void()> onClose, std::function<void(std::string)> onMessage, std::function<void()> onError)
+        : ImplBase(url, onOpen, onClose, onMessage, onError)
         {
-            // handle callbacks
-            void (^openCallback)() =  [onopen]()
+            void (^openCallback)() =  [this]()
             {
-                onopen();
+                m_onOpen();
             };
-            void (^closeCallback)() =  [onclose]()
+            void (^closeCallback)() =  [this]()
             {
-                onclose();
+                m_onClose();
             };
-            void (^messageCallback)(NSString* messageStr) =  [onmessage](NSString* messageStr)
+            void (^messageCallback)(NSString* messageStr) =  [this](NSString* messageStr)
             {
                 std::string cppString( [messageStr UTF8String] );
-                onmessage(cppString);
+                m_onMessage(cppString);
             };
-            void (^errorCallback)() =  [onerror]()
+            void (^errorCallback)() =  [this]()
             {
-                onerror();
+                m_onError();
             };
-            
-            webSocket = [[WebSocket_ObjC alloc] init];
-            NSString *messageString = @(url.data());
-            [webSocket open:messageString on_open:openCallback on_close:closeCallback on_message:messageCallback on_error:errorCallback];
+
+            webSocket = [[WebSocket_ObjC alloc] initWithCallbacks:@(url.data()) onOpen:openCallback onClose:closeCallback onMessage:messageCallback onError:errorCallback];
+        }
+
+        void Open()
+        {
+            [webSocket open];
         }
         
         void Send(std::string message)
