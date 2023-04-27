@@ -14,27 +14,29 @@ namespace UrlLib
     class WebSocket::Impl : public ImplBase
     {
     public:
-        void Open(std::string url,
-            std::function<void()> onopen,
-            std::function<void()> onclose,
-            std::function<void(std::string)> onmessage,
-            std::function<void()> onerror)
+        Impl(std::string url, std::function<void()> onopen, std::function<void()> onclose, std::function<void(std::string)> onmessage, std::function<void()> onerror)
+            : ImplBase(url, onopen, onclose, onmessage, onerror)
+            , m_webSocket{url, onopen, onclose, onmessage, onerror}
         {
-            m_webSocket = std::make_unique<WebSocketClient>(url, onopen, onclose, onmessage, onerror);
+        }
+
+        void Open()
+        {
+            m_webSocket.Open();
         }
 
         void Send(std::string message)
         {
-            m_webSocket->Send(message);
+            m_webSocket.Send(message);
         }
 
         void Close()
         {
-            m_webSocket->Close();
+            m_webSocket.Close();
         }
 
     private:
-        std::unique_ptr<WebSocketClient> m_webSocket{};
+        WebSocketClient m_webSocket;
     };
 }
 
