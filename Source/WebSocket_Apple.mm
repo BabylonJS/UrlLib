@@ -7,7 +7,7 @@ class API_AVAILABLE(ios(13.0)) WebSocket::Impl : public ImplBase
     {
     public:
         Impl(std::string url, std::function<void()> onOpen, std::function<void()> onClose, std::function<void(std::string)> onMessage, std::function<void()> onError)
-        : ImplBase(url, onOpen, onClose, onMessage, onError)
+        : ImplBase{url, onOpen, onClose, onMessage, onError}
         {
             void (^openCallback)() =  [this]()
             {
