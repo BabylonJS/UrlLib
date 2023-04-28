@@ -16,14 +16,6 @@ namespace UrlLib
         m_onError = onError;
     }
 
-    ~ImplBase()
-    {
-        m_onOpen = std::function<void()>();
-        m_onClose = std::function<void()>();
-        m_onMessage = std::function<void(std::string)>();
-        m_onError = std::function<void()>();
-    }
-        
     protected:
         std::string m_url;
         std::function<void()> m_onOpen;
