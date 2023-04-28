@@ -18,6 +18,11 @@ namespace UrlLib
         : ImplBase{url, onOpen, onClose, onMessage, onError}
         {
         }
+
+        ~Impl()
+        {
+            m_cancellationSource.cancel();
+        }
         
         void Send(std::string message)
         {
