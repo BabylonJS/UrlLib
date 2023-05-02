@@ -84,6 +84,10 @@
 
 - (void)URLSession:(NSURLSession *)session webSocketTask:(NSURLSessionWebSocketTask *)webSocketTask didCloseWithCloseCode:(NSInteger)code reason:(NSData *)reason  API_AVAILABLE(ios(13.0))
 {
+    if (code != 1000)
+    {
+        errorCallback();
+    }
     [self invalidateAndCancel];
 }
 
