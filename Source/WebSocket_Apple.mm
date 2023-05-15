@@ -6,7 +6,7 @@ namespace UrlLib
 class API_AVAILABLE(ios(13.0)) WebSocket::Impl : public ImplBase
     {
     public:
-        Impl(std::string url, std::function<void()> onOpen, std::function<void(int, std::string)> onClose, std::function<void(std::string)> onMessage, std::function<void(std::string)> onError)
+        Impl(const std::string& url, std::function<void()> onOpen, std::function<void(int, const std::string&)> onClose, std::function<void(const std::string&)> onMessage, std::function<void(const std::string&)> onError)
         : ImplBase{url, onOpen, onClose, onMessage, onError}
         {
             void (^openCallback)() =  [this]()
