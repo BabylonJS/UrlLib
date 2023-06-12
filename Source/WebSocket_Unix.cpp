@@ -22,18 +22,18 @@ namespace UrlLib
         
         void Send(std::string /*message*/)
         {
+            throw std::runtime_error{"Web socket not implemented for Unix"};
         }
 
         void Open()
         {
+            throw std::runtime_error{"Web socket not implemented for Unix"};
         }
 
         void Close()
         {
+            throw std::runtime_error{"Web socket not implemented for Unix"};
         }
-
-    private:
-
     };
 }
 
