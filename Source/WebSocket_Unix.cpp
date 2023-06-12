@@ -20,7 +20,7 @@ namespace UrlLib
         {
         }
         
-        void Send(std::string message)
+        void Send(std::string /*message*/)
         {
         }
 
