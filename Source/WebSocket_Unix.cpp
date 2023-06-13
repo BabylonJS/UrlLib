@@ -1,11 +1,5 @@
 #include "WebSocket_Base.h"
 
-#include <curl/curl.h>
-#include <unistd.h>
-#include <filesystem>
-#include <cassert>
-#include <sstream>
-
 namespace UrlLib
 {
     class WebSocket::Impl : public ImplBase
