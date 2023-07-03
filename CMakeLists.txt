@@ -15,7 +15,7 @@ FetchContent_Declare(arcana
     GIT_TAG        10d167ffe0f86b2ddaccd93fd78ff2240cbb0c49)
 FetchContent_Declare(AndroidExtensions
     GIT_REPOSITORY https://github.com/BabylonJS/AndroidExtensions.git
-    GIT_TAG        2622572ef0c6ee04a9f81e67a85dcb819d890dca)
+    GIT_TAG        883c4a286116e51ee989e39ee8e216d632997329)
 
 if(NOT TARGET arcana)
     set(CONTENT_TO_FETCH ${CONTENT_TO_FETCH} arcana)
