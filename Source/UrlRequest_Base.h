@@ -79,7 +79,7 @@ namespace UrlLib
             std::transform(s.cbegin(), s.cend(), s.begin(), [](auto c) { return static_cast<decltype(c)>(std::tolower(c)); });
             return s;
         }
-        
+
         static void ToLower(std::string& s)
         {
             std::transform(s.cbegin(), s.cend(), s.begin(), [](auto c) { return static_cast<decltype(c)>(std::tolower(c)); });
@@ -97,7 +97,7 @@ namespace UrlLib
 
             while (std::filesystem::is_symlink(resolvedPath))
             {
-                resolvedPath = std::filesystem::read_symlink(resolvedPath);
+                resolvedPath = std::filesystem::read_symlink(resolvedPath).wstring();
 
                 //if (m_symlinkResolutionType != UrlSymlinkResolutionType::ResolveSymlinkRecursively)
                 //{
