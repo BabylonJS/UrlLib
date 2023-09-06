@@ -48,6 +48,20 @@ namespace UrlLib
             std::replace(path.begin(), path.end(), '/', '\\');
             return std::move(path);
         }
+
+        std::wstring ResolveSymlink(const std::wstring& path)
+        {
+            std::wstring resolvedPath{path};
+
+            while (std::filesystem::is_symlink(resolvedPath))
+            {
+                resolvedPath = std::filesystem::read_symlink(resolvedPath).wstring();
+            }
+
+            std::replace(resolvedPath.begin(), resolvedPath.end(), '/', '\\');
+
+            return std::move(resolvedPath);
+        }
     }
 
     class UrlRequest::Impl : public ImplBase
@@ -72,7 +86,6 @@ namespace UrlLib
                     }
 
                     path = ResolveSymlink(path);
-                    std::replace(path.begin(), path.end(), '/', '\\');
 
                     return arcana::create_task<std::exception_ptr>(Storage::StorageFile::GetFileFromPathAsync(path))
                         .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::StorageFile file) {

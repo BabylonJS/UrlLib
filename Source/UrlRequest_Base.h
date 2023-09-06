@@ -85,29 +85,6 @@ namespace UrlLib
             std::transform(s.cbegin(), s.cend(), s.begin(), [](auto c) { return static_cast<decltype(c)>(std::tolower(c)); });
         }
 
-
-        std::wstring ResolveSymlink(const std::wstring& path)
-        {
-            //if (m_symlinkResolutionType == UrlSymlinkResolutionType::DoNotResolveSymlinks)
-            //{
-            //    return path;
-            //}
-
-            std::wstring resolvedPath{path};
-
-            while (std::filesystem::is_symlink(resolvedPath))
-            {
-                resolvedPath = std::filesystem::read_symlink(resolvedPath).wstring();
-
-                //if (m_symlinkResolutionType != UrlSymlinkResolutionType::ResolveSymlinkRecursively)
-                //{
-                //    break;
-                //}
-            }
-
-            return std::move(resolvedPath);
-        }
-
         arcana::cancellation_source m_cancellationSource{};
         UrlResponseType m_responseType{UrlResponseType::String};
         UrlMethod m_method{UrlMethod::Get};
