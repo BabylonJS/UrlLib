@@ -58,7 +58,7 @@ namespace UrlLib
                 resolvedPath = std::filesystem::read_symlink(resolvedPath).wstring();
             }
 
-            std::replace(resolvedPath.begin(), resolvedPath.end(), '/', '\\');
+            std::replace(resolvedPath.begin(), resolvedPath.end(), L'/', L'\\');
 
             return std::move(resolvedPath);
         }
@@ -82,7 +82,7 @@ namespace UrlLib
                     auto path = GetLocalPath(m_uri);
                     if (m_uri.SchemeName() == L"app")
                     {
-                        path = std::wstring(GetInstalledLocation()) + L"\\" + path;
+                        path = std::wstring(GetInstalledLocation()) + L'\\' + path;
                     }
 
                     path = ResolveSymlink(path);
@@ -115,7 +115,7 @@ namespace UrlLib
 
                     m_requestHeaders.clear();
 
-                    // check the method 
+                    // check the method
                     if (m_method == UrlMethod::Post)
                     {
                         // if post, set the content type
