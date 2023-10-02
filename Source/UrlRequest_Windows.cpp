@@ -217,7 +217,7 @@ namespace UrlLib
                             throw std::runtime_error{msg.str()};
                         }
 
-                        file.read((char*)m_fileResponseBuffer.data(), std::filesystem::file_size(path));
+                        file.read(reinterpret_cast<char*>(m_fileResponseBuffer.data()), std::filesystem::file_size(path));
                         m_statusCode = UrlStatusCode::Ok;
                     });
                 }
