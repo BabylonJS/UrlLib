@@ -174,7 +174,7 @@ namespace UrlLib
             }
             else if (m_httpResponseBuffer)
             {
-                std::byte* bytes{nullptr};
+                std::byte* bytes;
                 auto bufferByteAccess = m_httpResponseBuffer.as<::Windows::Storage::Streams::IBufferByteAccess>();
                 winrt::check_hresult(bufferByteAccess->Buffer(reinterpret_cast<byte**>(&bytes)));
                 return {bytes, gsl::narrow_cast<std::size_t>(m_httpResponseBuffer.Length())};
