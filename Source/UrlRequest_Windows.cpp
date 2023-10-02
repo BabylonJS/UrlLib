@@ -171,7 +171,7 @@ namespace UrlLib
         {
             if (!m_fileResponseBuffer.empty())
             {
-                return {(std::byte*)m_fileResponseBuffer.data(), gsl::narrow_cast<std::size_t>(m_fileResponseBuffer.size())};
+                return {m_fileResponseBuffer.data(), m_fileResponseBuffer.size()};
             }
             else if (m_httpResponseBuffer)
             {
