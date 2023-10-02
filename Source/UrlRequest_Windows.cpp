@@ -168,7 +168,7 @@ namespace UrlLib
 
         gsl::span<const std::byte> ResponseBuffer() const
         {
-            if ((m_uri.SchemeName() == L"app" || m_uri.SchemeName() == L"file") && m_fileResponseBuffer.size() > 0)
+            if (m_fileResponseBuffer.size() > 0)
             {
                 return {(std::byte*)m_fileResponseBuffer.data(), gsl::narrow_cast<std::size_t>(m_fileResponseBuffer.size())};
             }
