@@ -3,12 +3,16 @@
 #include <Unknwn.h>
 #include <PathCch.h>
 #include <arcana/threading/task_conversions.h>
+#include <arcana/threading/task_schedulers.h>
 #include <robuffer.h>
 #include <winrt/Windows.Storage.Streams.h>
 #include <winrt/Windows.Web.Http.h>
 #include <winrt/Windows.ApplicationModel.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Web.Http.Headers.h>
+
+#include <fstream>
+#include <sstream>
 
 namespace UrlLib
 {
@@ -63,22 +67,14 @@ namespace UrlLib
         {
             try
             {
-                if (m_uri.SchemeName() == L"app")
+                if (m_uri.SchemeName() == L"app" || m_uri.SchemeName() == L"file")
                 {
-                    return arcana::create_task<std::exception_ptr>(Storage::StorageFolder::GetFolderFromPathAsync(GetInstalledLocation()))
-                        .then(arcana::inline_scheduler, m_cancellationSource, [this, m_uri{m_uri}](Storage::StorageFolder folder) {
-                            return arcana::create_task<std::exception_ptr>(folder.GetFileAsync(GetLocalPath(m_uri)));
-                        })
-                        .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::StorageFile file) {
-                            return LoadFileAsync(file);
-                        });
-                }
-                else if (m_uri.SchemeName() == L"file")
-                {
-                    return arcana::create_task<std::exception_ptr>(Storage::StorageFile::GetFileFromPathAsync(GetLocalPath(m_uri)))
-                        .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::StorageFile file) {
-                            return LoadFileAsync(file);
-                        });
+                    auto path = GetLocalPath(m_uri);
+                    if (m_uri.SchemeName() == L"app")
+                    {
+                        path = std::wstring(GetInstalledLocation()) + L'\\' + path;
+                    }
+                    return LoadFileAsync(path);
                 }
                 else
                 {
@@ -103,7 +99,7 @@ namespace UrlLib
 
                     m_requestHeaders.clear();
 
-                    // check the method 
+                    // check the method
                     if (m_method == UrlMethod::Post)
                     {
                         // if post, set the content type
@@ -151,7 +147,7 @@ namespace UrlLib
                                     return arcana::create_task<std::exception_ptr>(responseMessage.Content().ReadAsBufferAsync())
                                         .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::Streams::IBuffer buffer)
                                         {
-                                            m_responseBuffer = std::move(buffer);
+                                            m_httpResponseBuffer = std::move(buffer);
                                             m_statusCode = UrlStatusCode::Ok;
                                         });
                                 }
@@ -172,37 +168,57 @@ namespace UrlLib
 
         gsl::span<const std::byte> ResponseBuffer() const
         {
-            if (!m_responseBuffer)
+            if ((m_uri.SchemeName() == L"app" || m_uri.SchemeName() == L"file") && m_fileResponseBuffer.size() > 0)
             {
-                return {};
+                return {(std::byte*)m_fileResponseBuffer.data(), gsl::narrow_cast<std::size_t>(m_fileResponseBuffer.size())};
             }
-
-            std::byte* bytes;
-            auto bufferByteAccess = m_responseBuffer.as<::Windows::Storage::Streams::IBufferByteAccess>();
-            winrt::check_hresult(bufferByteAccess->Buffer(reinterpret_cast<byte**>(&bytes)));
-            return {bytes, gsl::narrow_cast<std::size_t>(m_responseBuffer.Length())};
+            else if (m_httpResponseBuffer)
+            {
+                std::byte* bytes{nullptr};
+                auto bufferByteAccess = m_httpResponseBuffer.as<::Windows::Storage::Streams::IBufferByteAccess>();
+                winrt::check_hresult(bufferByteAccess->Buffer(reinterpret_cast<byte**>(&bytes)));
+                return {bytes, gsl::narrow_cast<std::size_t>(m_httpResponseBuffer.Length())};
+            }
+            return {};
         }
 
     private:
-        arcana::task<void, std::exception_ptr> LoadFileAsync(Storage::StorageFile file)
+        arcana::task<void, std::exception_ptr> LoadFileAsync(const std::wstring& path)
         {
             switch (m_responseType)
             {
                 case UrlResponseType::String:
                 {
-                    return arcana::create_task<std::exception_ptr>(Storage::FileIO::ReadTextAsync(file))
-                        .then(arcana::inline_scheduler, m_cancellationSource, [this](winrt::hstring text) {
-                            m_responseString = winrt::to_string(text);
-                            m_statusCode = UrlStatusCode::Ok;
-                        });
+                    return arcana::make_task(arcana::threadpool_scheduler, m_cancellationSource, [this, path] {
+                        std::ifstream file(path);
+                        if (!file.good())
+                        {
+                            std::stringstream msg;
+                            msg << "Failed to read file " << path.c_str();
+                            throw std::runtime_error{msg.str()};
+                        }
+
+                        std::stringstream ss;
+                        ss << file.rdbuf();
+
+                        m_responseString = ss.str();
+                        m_statusCode = UrlStatusCode::Ok;
+                    });
                 }
                 case UrlResponseType::Buffer:
                 {
-                    return arcana::create_task<std::exception_ptr>(Storage::FileIO::ReadBufferAsync(file))
-                        .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::Streams::IBuffer buffer) {
-                            m_responseBuffer = std::move(buffer);
-                            m_statusCode = UrlStatusCode::Ok;
-                        });
+                    return arcana::make_task(arcana::threadpool_scheduler, m_cancellationSource, [this, path] {
+                        std::ifstream file(path, std::ios::binary);
+                        if (!file.good())
+                        {
+                            std::stringstream msg;
+                            msg << "Failed to read file " << path.c_str();
+                            throw std::runtime_error{msg.str()};
+                        }
+
+                        m_fileResponseBuffer.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+                        m_statusCode = UrlStatusCode::Ok;
+                    });
                 }
                 default:
                 {
@@ -212,7 +228,8 @@ namespace UrlLib
         }
 
         Foundation::Uri m_uri{nullptr};
-        Storage::Streams::IBuffer m_responseBuffer{};
+        Storage::Streams::IBuffer m_httpResponseBuffer{};
+        std::vector<char> m_fileResponseBuffer;
     };
 }
 
