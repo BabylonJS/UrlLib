@@ -11,6 +11,7 @@
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Web.Http.Headers.h>
 
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 
@@ -216,7 +217,7 @@ namespace UrlLib
                             throw std::runtime_error{msg.str()};
                         }
 
-                        m_fileResponseBuffer.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+                        file.read((char*)m_fileResponseBuffer.data(), std::filesystem::file_size(path));
                         m_statusCode = UrlStatusCode::Ok;
                     });
                 }
@@ -229,7 +230,7 @@ namespace UrlLib
 
         Foundation::Uri m_uri{nullptr};
         Storage::Streams::IBuffer m_httpResponseBuffer{};
-        std::vector<char> m_fileResponseBuffer;
+        std::vector<std::byte> m_fileResponseBuffer;
     };
 }
 
