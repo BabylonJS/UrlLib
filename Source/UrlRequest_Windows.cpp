@@ -10,6 +10,7 @@
 #include <winrt/Windows.ApplicationModel.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Web.Http.Headers.h>
+#include <winapifamily.h>
 
 #include <filesystem>
 #include <fstream>
@@ -36,14 +37,14 @@ namespace UrlLib
 
         winrt::hstring GetInstalledLocation()
         {
-#ifdef WIN32
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
             WCHAR modulePath[4096];
             DWORD result{::GetModuleFileNameW(nullptr, modulePath, ARRAYSIZE(modulePath))};
             winrt::check_bool(result != 0 && result != std::size(modulePath));
             winrt::check_hresult(PathCchRemoveFileSpec(modulePath, ARRAYSIZE(modulePath)));
             return modulePath;
 #else
-            return ApplicationModel::Package::Current().InstalledLocation().Path;
+            return ApplicationModel::Package::Current().InstalledLocation().Path();
 #endif
         }
 
