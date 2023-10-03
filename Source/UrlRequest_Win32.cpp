@@ -38,7 +38,6 @@ namespace UrlLib
                 return LoadHttpAsync();
             }
         }
-        //  TODO: Find other exceptions that can be thrown here for C++ STL file I/O.
         catch (winrt::hresult_error)
         {
             // Catch WinRT exceptions, but retain the default status code of 0 to indicate a client side error.
