@@ -17,11 +17,6 @@ public:
 
     m_method = method;
     m_url = url;
-
-    if (m_method == UrlMethod::Post) {
-      // TODO: Implement POST
-      throw std::runtime_error{"Not implemented"};
-    }
   }
 
   arcana::task<void, std::exception_ptr> SendAsync() {
