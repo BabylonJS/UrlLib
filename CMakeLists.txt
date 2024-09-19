@@ -74,6 +74,10 @@ elseif(WIN32)
         set(ADDITIONAL_LIBRARIES
             PUBLIC onecoreuap.lib)
     endif()
+elseif(EMSCRIPTEN)
+    set(ADDITIONAL_SOURCES
+        "Source/UrlRequest_Emscripten.cpp"
+        "Source/WebSocket_Emscripten.cpp")
 else()
     message(FATAL_ERROR "Unrecognized platform: ${CMAKE_SYSTEM_NAME}")
 endif()
