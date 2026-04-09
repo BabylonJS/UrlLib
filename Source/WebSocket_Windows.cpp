@@ -52,6 +52,7 @@ namespace UrlLib
                             catch (const std::exception& ex)
                             {
                                 m_onError(ex.what());
+                                m_onClose(1006, ex.what());
                             }
                         }
                     });
@@ -60,6 +61,7 @@ namespace UrlLib
             {
                 std::string errorMessage = winrt::to_string(ex.message());
                 m_onError(errorMessage);
+                m_onClose(1006, errorMessage);
             }
         }
 
@@ -93,6 +95,7 @@ namespace UrlLib
                             catch (const std::exception& ex)
                             {
                                 m_onError(ex.what());
+                                m_onClose(1006, ex.what());
                             }
                         }
                     });
@@ -101,6 +104,7 @@ namespace UrlLib
             {
                 std::string errorMessage = winrt::to_string(ex.message());
                 m_onError(errorMessage);
+                m_onClose(1006, errorMessage);
             }
         }
 
@@ -112,6 +116,11 @@ namespace UrlLib
     private:
         void OnWebSocketClosed(Windows::Networking::Sockets::IWebSocket const& /* sender */, Windows::Networking::Sockets::WebSocketClosedEventArgs const& args)
         {
+            if (m_closed)
+            {
+                return;
+            }
+            m_closed = true;
             if (args.Code() != 1000)
             {
                 m_onError(winrt::to_string(args.Reason()));
@@ -133,11 +142,13 @@ namespace UrlLib
             {
                 std::string errorMessage = winrt::to_string(ex.message());
                 m_onError(errorMessage);
+                m_onClose(1006, errorMessage);
             }
         }
        
         Windows::Networking::Sockets::MessageWebSocket m_webSocket;
         std::shared_ptr<arcana::cancellation_source> m_cancellationSource{};
+        bool m_closed{false};
 
         event_token m_messageReceivedEventToken;
         event_token m_closedEventToken;

@@ -49,6 +49,7 @@
         {
             NSString *errorMessage = [error localizedDescription];
             errorCallback(errorMessage);
+            [self invalidateAndCancelWithCloseCode:1006 reason:errorMessage];
         }
     }];
 }
@@ -61,6 +62,7 @@
         {
             NSString *errorMessage = [error localizedDescription];
             errorCallback(errorMessage);
+            [self invalidateAndCancelWithCloseCode:1006 reason:errorMessage];
         }
         else if (message.type == NSURLSessionWebSocketMessageTypeString)
         {
@@ -83,6 +85,7 @@
     {
         NSString *errorMessage = [error localizedDescription];
         errorCallback(errorMessage);
+        [self invalidateAndCancelWithCloseCode:1006 reason:errorMessage];
     }
 }
 
@@ -99,6 +102,10 @@
 
 - (void)invalidateAndCancelWithCloseCode:(int)code reason:(NSString *) reason
 {
+    if (!session)
+    {
+        return;
+    }
     webSocketTask = nil;
     [session invalidateAndCancel];
     session = nil;
