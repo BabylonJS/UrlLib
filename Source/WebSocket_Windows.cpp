@@ -51,17 +51,14 @@ namespace UrlLib
                             }
                             catch (const std::exception& ex)
                             {
-                                m_onError(ex.what());
-                                m_onClose(1006, ex.what());
+                                CloseWithError(1006, ex.what());
                             }
                         }
                     });
             }
             catch (winrt::hresult_error const& ex)
             {
-                std::string errorMessage = winrt::to_string(ex.message());
-                m_onError(errorMessage);
-                m_onClose(1006, errorMessage);
+                CloseWithError(1006, winrt::to_string(ex.message()));
             }
         }
 
@@ -94,17 +91,14 @@ namespace UrlLib
                             }
                             catch (const std::exception& ex)
                             {
-                                m_onError(ex.what());
-                                m_onClose(1006, ex.what());
+                                CloseWithError(1006, ex.what());
                             }
                         }
                     });
             }
             catch (hresult_error const& ex)
             {
-                std::string errorMessage = winrt::to_string(ex.message());
-                m_onError(errorMessage);
-                m_onClose(1006, errorMessage);
+                CloseWithError(1006, winrt::to_string(ex.message()));
             }
         }
 
@@ -116,16 +110,14 @@ namespace UrlLib
     private:
         void OnWebSocketClosed(Windows::Networking::Sockets::IWebSocket const& /* sender */, Windows::Networking::Sockets::WebSocketClosedEventArgs const& args)
         {
-            if (m_closed)
-            {
-                return;
-            }
-            m_closed = true;
             if (args.Code() != 1000)
             {
-                m_onError(winrt::to_string(args.Reason()));
+                CloseWithError(args.Code(), winrt::to_string(args.Reason()));
             }
-            m_onClose(args.Code(), winrt::to_string(args.Reason()));
+            else
+            {
+                CloseNormally(args.Code(), winrt::to_string(args.Reason()));
+            }
         }
 
         void OnMessageReceived(Windows::Networking::Sockets::MessageWebSocket const& /* sender */, Windows::Networking::Sockets::MessageWebSocketMessageReceivedEventArgs const& args)
@@ -140,15 +132,34 @@ namespace UrlLib
             }
             catch (winrt::hresult_error const& ex)
             {
-                std::string errorMessage = winrt::to_string(ex.message());
-                m_onError(errorMessage);
-                m_onClose(1006, errorMessage);
+                CloseWithError(1006, winrt::to_string(ex.message()));
             }
         }
        
+        // Centralized close-once helpers. Thread-safe via atomic flag.
+        // Per the WebSocket spec, onError fires first, then onClose exactly once.
+        void CloseWithError(int code, const std::string& reason)
+        {
+            if (m_closed.exchange(true))
+            {
+                return;
+            }
+            m_onError(reason);
+            m_onClose(code, reason);
+        }
+
+        void CloseNormally(int code, const std::string& reason)
+        {
+            if (m_closed.exchange(true))
+            {
+                return;
+            }
+            m_onClose(code, reason);
+        }
+
         Windows::Networking::Sockets::MessageWebSocket m_webSocket;
         std::shared_ptr<arcana::cancellation_source> m_cancellationSource{};
-        bool m_closed{false};
+        std::atomic<bool> m_closed{false};
 
         event_token m_messageReceivedEventToken;
         event_token m_closedEventToken;

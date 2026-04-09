@@ -63,6 +63,7 @@
             NSString *errorMessage = [error localizedDescription];
             errorCallback(errorMessage);
             [self invalidateAndCancelWithCloseCode:1006 reason:errorMessage];
+            return;
         }
         else if (message.type == NSURLSessionWebSocketMessageTypeString)
         {
@@ -79,9 +80,9 @@
     [self receiveMessage];
 }
 
-- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error 
+- (void)URLSession:(NSURLSession *)theSession task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error 
 {
-    if (error)
+    if (error && session)
     {
         NSString *errorMessage = [error localizedDescription];
         errorCallback(errorMessage);
