@@ -47,9 +47,7 @@
     {
         if (error) 
         {
-            NSString *errorMessage = [error localizedDescription];
-            errorCallback(errorMessage);
-            [self invalidateAndCancelWithCloseCode:1006 reason:errorMessage];
+            [self invalidateAndCancelWithCloseCode:1006 reason:[error localizedDescription]];
         }
     }];
 }
@@ -60,9 +58,7 @@
     {
         if (error) 
         {
-            NSString *errorMessage = [error localizedDescription];
-            errorCallback(errorMessage);
-            [self invalidateAndCancelWithCloseCode:1006 reason:errorMessage];
+            [self invalidateAndCancelWithCloseCode:1006 reason:[error localizedDescription]];
             return;
         }
         else if (message.type == NSURLSessionWebSocketMessageTypeString)
@@ -84,23 +80,17 @@
 {
     if (error && session)
     {
-        NSString *errorMessage = [error localizedDescription];
-        errorCallback(errorMessage);
-        [self invalidateAndCancelWithCloseCode:1006 reason:errorMessage];
+        [self invalidateAndCancelWithCloseCode:1006 reason:[error localizedDescription]];
     }
 }
 
 - (void)URLSession:(NSURLSession *)session webSocketTask:(NSURLSessionWebSocketTask *)webSocketTask didCloseWithCloseCode:(NSInteger)code reason:(NSData *)reason  API_AVAILABLE(ios(13.0))
 {
     NSString *reasonStr = [[NSString alloc] initWithData:reason encoding:NSUTF8StringEncoding];
-    if (code != 1000)
-    {
-        errorCallback(reasonStr);
-    }
-
     [self invalidateAndCancelWithCloseCode:(int)code reason:reasonStr];
 }
 
+// Close-once helper. Fires onError for abnormal codes, then onClose exactly once.
 - (void)invalidateAndCancelWithCloseCode:(int)code reason:(NSString *) reason
 {
     if (!session)
@@ -110,6 +100,10 @@
     webSocketTask = nil;
     [session invalidateAndCancel];
     session = nil;
+    if (code != 1000)
+    {
+        errorCallback(reason);
+    }
     closeCallback(code, reason);
 }
 
