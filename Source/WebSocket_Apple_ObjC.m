@@ -29,31 +29,17 @@
 
 -(void) open
 {
-    session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:self delegateQueue:[[NSOperationQueue alloc] init]];
-    webSocketTask = [session webSocketTaskWithURL:[NSURL URLWithString:websocketUrl]];
+    @synchronized(self)
+    {
+        session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:self delegateQueue:[[NSOperationQueue alloc] init]];
+        webSocketTask = [session webSocketTaskWithURL:[NSURL URLWithString:websocketUrl]];
+    }
     [webSocketTask resume];
 }
 
 - (void) close 
 {
-    NSURLSessionWebSocketTask* taskToCancel;
-    NSURLSession* sessionToInvalidate;
-
-    @synchronized(self)
-    {
-        if (!session)
-        {
-            return;
-        }
-        taskToCancel = webSocketTask;
-        webSocketTask = nil;
-        sessionToInvalidate = session;
-        session = nil;
-    }
-
-    [taskToCancel cancel];
-    [sessionToInvalidate invalidateAndCancel];
-    closeCallback(1000, [NSString stringWithUTF8String:"Normal close."]);
+    [self invalidateAndCancelWithCloseCode:1000 reason:[NSString stringWithUTF8String:"Normal close."]];
 }
 
 - (void) sendMessage:(NSString*)message
@@ -112,7 +98,15 @@
 
 - (void)URLSession:(NSURLSession*)session webSocketTask:(NSURLSessionWebSocketTask*)webSocketTask didOpenWithProtocol:(NSString*)protocol  API_AVAILABLE(ios(13.0))
 {
-    openCallback();
+    void (^callback)();
+    @synchronized(self)
+    {
+        callback = openCallback;
+    }
+    if (callback)
+    {
+        callback();
+    }
     // run the loop to receive messages
     [self receiveMessage];
 }
