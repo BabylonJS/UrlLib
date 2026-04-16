@@ -29,12 +29,14 @@
 
 -(void) open
 {
+    NSURLSessionWebSocketTask* task;
     @synchronized(self)
     {
         session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:self delegateQueue:[[NSOperationQueue alloc] init]];
         webSocketTask = [session webSocketTaskWithURL:[NSURL URLWithString:websocketUrl]];
+        task = webSocketTask;
     }
-    [webSocketTask resume];
+    [task resume];
 }
 
 - (void) close 
@@ -151,7 +153,10 @@
     {
         errorCb(reason);
     }
-    closeCb(code, reason);
+    if (closeCb)
+    {
+        closeCb(code, reason);
+    }
 }
 
 @end
