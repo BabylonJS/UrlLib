@@ -36,14 +36,38 @@
 
 - (void) close 
 {
-    [webSocketTask cancel];
-    NSString *closeStr = [NSString stringWithUTF8String:"Normal close."];
-    [self invalidateAndCancelWithCloseCode:1000 reason:closeStr];
+    NSURLSessionWebSocketTask *taskToCancel;
+    NSURLSession *sessionToInvalidate;
+
+    @synchronized(self)
+    {
+        if (!session)
+        {
+            return;
+        }
+        taskToCancel = webSocketTask;
+        webSocketTask = nil;
+        sessionToInvalidate = session;
+        session = nil;
+    }
+
+    [taskToCancel cancel];
+    [sessionToInvalidate invalidateAndCancel];
+    closeCallback(1000, [NSString stringWithUTF8String:"Normal close."]);
 }
 
 - (void) sendMessage:(NSString *)message
 {
-    [webSocketTask sendMessage: [[NSURLSessionWebSocketMessage alloc] initWithString:message] completionHandler:^(NSError * _Nullable error)
+    NSURLSessionWebSocketTask *task;
+    @synchronized(self)
+    {
+        task = webSocketTask;
+    }
+    if (!task)
+    {
+        return;
+    }
+    [task sendMessage: [[NSURLSessionWebSocketMessage alloc] initWithString:message] completionHandler:^(NSError * _Nullable error)
     {
         if (error) 
         {
@@ -54,7 +78,16 @@
 
 - (void)receiveMessage
 {
-    [webSocketTask receiveMessageWithCompletionHandler:^(NSURLSessionWebSocketMessage * _Nullable message, NSError * _Nullable error)
+    NSURLSessionWebSocketTask *task;
+    @synchronized(self)
+    {
+        task = webSocketTask;
+    }
+    if (!task)
+    {
+        return;
+    }
+    [task receiveMessageWithCompletionHandler:^(NSURLSessionWebSocketMessage * _Nullable message, NSError * _Nullable error)
     {
         if (error) 
         {
@@ -63,7 +96,15 @@
         }
         else if (message.type == NSURLSessionWebSocketMessageTypeString)
         {
-            messageCallback(message.string);
+            void (^callback)(NSString *);
+            @synchronized(self)
+            {
+                callback = messageCallback;
+            }
+            if (callback)
+            {
+                callback(message.string);
+            }
         }
         [self receiveMessage];
     }];
@@ -78,7 +119,7 @@
 
 - (void)URLSession:(NSURLSession *)theSession task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error 
 {
-    if (error && session)
+    if (error)
     {
         [self invalidateAndCancelWithCloseCode:1006 reason:[error localizedDescription]];
     }
@@ -91,20 +132,32 @@
 }
 
 // Close-once helper. Fires onError for abnormal codes, then onClose exactly once.
+// Callbacks are invoked outside the lock to avoid reentrancy issues.
 - (void)invalidateAndCancelWithCloseCode:(int)code reason:(NSString *) reason
 {
-    if (!session)
+    NSURLSession *sessionToInvalidate;
+    void (^errorCb)(NSString *);
+    void (^closeCb)(int, NSString *);
+
+    @synchronized(self)
     {
-        return;
+        if (!session)
+        {
+            return;
+        }
+        webSocketTask = nil;
+        sessionToInvalidate = session;
+        session = nil;
+        errorCb = (code != 1000) ? errorCallback : nil;
+        closeCb = closeCallback;
     }
-    webSocketTask = nil;
-    [session invalidateAndCancel];
-    session = nil;
-    if (code != 1000)
+
+    [sessionToInvalidate invalidateAndCancel];
+    if (errorCb)
     {
-        errorCallback(reason);
+        errorCb(reason);
     }
-    closeCallback(code, reason);
+    closeCb(code, reason);
 }
 
 @end
