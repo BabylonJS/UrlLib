@@ -2,20 +2,20 @@
 
 @interface WebSocket_ObjC() <NSURLSessionWebSocketDelegate>
 {
-    NSURLSessionWebSocketTask *webSocketTask API_AVAILABLE(ios(13.0));
-    NSURLSession *session;
-    NSString *websocketUrl;
+    NSURLSessionWebSocketTask* webSocketTask API_AVAILABLE(ios(13.0));
+    NSURLSession* session;
+    NSString* websocketUrl;
     // store callbacks here
     void (^openCallback)();
-    void (^closeCallback)(int, NSString *);
-    void (^messageCallback)(NSString *);
-    void (^errorCallback)(NSString *);
+    void (^closeCallback)(int, NSString*);
+    void (^messageCallback)(NSString*);
+    void (^errorCallback)(NSString*);
 }
 @end
 
 @implementation WebSocket_ObjC
 
-- (instancetype)initWithCallbacks:(NSString *)url onOpen:(void (^)(void))onOpen onClose:(void (^)(int, NSString *))onClose onMessage:(void (^)(NSString *))onMessage onError:(void (^)(NSString *))onError
+- (instancetype)initWithCallbacks:(NSString*)url onOpen:(void (^)(void))onOpen onClose:(void (^)(int, NSString*))onClose onMessage:(void (^)(NSString*))onMessage onError:(void (^)(NSString*))onError
 {
     self = [super init];
     websocketUrl = url;
@@ -36,8 +36,8 @@
 
 - (void) close 
 {
-    NSURLSessionWebSocketTask *taskToCancel;
-    NSURLSession *sessionToInvalidate;
+    NSURLSessionWebSocketTask* taskToCancel;
+    NSURLSession* sessionToInvalidate;
 
     @synchronized(self)
     {
@@ -56,9 +56,9 @@
     closeCallback(1000, [NSString stringWithUTF8String:"Normal close."]);
 }
 
-- (void) sendMessage:(NSString *)message
+- (void) sendMessage:(NSString*)message
 {
-    NSURLSessionWebSocketTask *task;
+    NSURLSessionWebSocketTask* task;
     @synchronized(self)
     {
         task = webSocketTask;
@@ -67,7 +67,7 @@
     {
         return;
     }
-    [task sendMessage: [[NSURLSessionWebSocketMessage alloc] initWithString:message] completionHandler:^(NSError * _Nullable error)
+    [task sendMessage: [[NSURLSessionWebSocketMessage alloc] initWithString:message] completionHandler:^(NSError* _Nullable error)
     {
         if (error) 
         {
@@ -78,7 +78,7 @@
 
 - (void)receiveMessage
 {
-    NSURLSessionWebSocketTask *task;
+    NSURLSessionWebSocketTask* task;
     @synchronized(self)
     {
         task = webSocketTask;
@@ -87,7 +87,7 @@
     {
         return;
     }
-    [task receiveMessageWithCompletionHandler:^(NSURLSessionWebSocketMessage * _Nullable message, NSError * _Nullable error)
+    [task receiveMessageWithCompletionHandler:^(NSURLSessionWebSocketMessage* _Nullable message, NSError* _Nullable error)
     {
         if (error) 
         {
@@ -96,7 +96,7 @@
         }
         else if (message.type == NSURLSessionWebSocketMessageTypeString)
         {
-            void (^callback)(NSString *);
+            void (^callback)(NSString*);
             @synchronized(self)
             {
                 callback = messageCallback;
@@ -110,14 +110,14 @@
     }];
 }
 
-- (void)URLSession:(NSURLSession *)session webSocketTask:(NSURLSessionWebSocketTask *)webSocketTask didOpenWithProtocol:(NSString *)protocol  API_AVAILABLE(ios(13.0))
+- (void)URLSession:(NSURLSession*)session webSocketTask:(NSURLSessionWebSocketTask*)webSocketTask didOpenWithProtocol:(NSString*)protocol  API_AVAILABLE(ios(13.0))
 {
     openCallback();
     // run the loop to receive messages
     [self receiveMessage];
 }
 
-- (void)URLSession:(NSURLSession *)theSession task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error 
+- (void)URLSession:(NSURLSession*)theSession task:(NSURLSessionTask*)task didCompleteWithError:(NSError*)error 
 {
     if (error)
     {
@@ -125,19 +125,19 @@
     }
 }
 
-- (void)URLSession:(NSURLSession *)session webSocketTask:(NSURLSessionWebSocketTask *)webSocketTask didCloseWithCloseCode:(NSInteger)code reason:(NSData *)reason  API_AVAILABLE(ios(13.0))
+- (void)URLSession:(NSURLSession*)session webSocketTask:(NSURLSessionWebSocketTask*)webSocketTask didCloseWithCloseCode:(NSInteger)code reason:(NSData*)reason  API_AVAILABLE(ios(13.0))
 {
-    NSString *reasonStr = [[NSString alloc] initWithData:reason encoding:NSUTF8StringEncoding];
+    NSString* reasonStr = [[NSString alloc] initWithData:reason encoding:NSUTF8StringEncoding];
     [self invalidateAndCancelWithCloseCode:(int)code reason:reasonStr];
 }
 
 // Close-once helper. Fires onError for abnormal codes, then onClose exactly once.
 // Callbacks are invoked outside the lock to avoid reentrancy issues.
-- (void)invalidateAndCancelWithCloseCode:(int)code reason:(NSString *) reason
+- (void)invalidateAndCancelWithCloseCode:(int)code reason:(NSString*) reason
 {
-    NSURLSession *sessionToInvalidate;
-    void (^errorCb)(NSString *);
-    void (^closeCb)(int, NSString *);
+    NSURLSession* sessionToInvalidate;
+    void (^errorCb)(NSString*);
+    void (^closeCb)(int, NSString*);
 
     @synchronized(self)
     {
