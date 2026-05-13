@@ -36,7 +36,12 @@ namespace UrlLib
                 NSString* path = [[NSBundle mainBundle] pathForResource:[m_url.path substringFromIndex:1] ofType:nil];
                 if (path == nil)
                 {
-                    throw std::runtime_error{"No file exists at local path"};
+                    // No bundled resource at this path. Don't throw -- let SendAsync's existing
+                    // `if (m_url == nil)` branch complete the task and retain the default status
+                    // code of 0 to indicate a client side error. This matches Win32 / UWP / Unix
+                    // semantics for missing local files.
+                    m_url = nil;
+                    return;
                 }
                 m_url = [NSURL fileURLWithPath:path];
             }
