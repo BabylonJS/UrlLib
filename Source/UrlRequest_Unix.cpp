@@ -39,6 +39,7 @@ namespace UrlLib
         {
             Cleanup();
 
+            m_statusCode = UrlStatusCode::None;
             m_method = method;
 
             if (m_method == UrlMethod::Post)
