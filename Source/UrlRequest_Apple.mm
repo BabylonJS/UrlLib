@@ -24,7 +24,9 @@ namespace UrlLib
     public:
         void Open(UrlMethod method, const std::string& url)
         {
-            m_statusCode = UrlStatusCode::None;
+            ResetForOpen();
+            m_responseBuffer = nil;
+
             m_method = method;
             m_url = [NSURL URLWithString:[[NSString stringWithUTF8String:url.data()] stringByAddingPercentEncodingWithAllowedCharacters:URLAllowedCharacterSet]];
             if (!m_url || !m_url.scheme)
