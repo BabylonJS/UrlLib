@@ -100,6 +100,7 @@ namespace UrlLib
                 .then(arcana::inline_scheduler, m_cancellationSource, [this](Web::Http::HttpResponseMessage responseMessage)
                 {
                     m_statusCode = static_cast<UrlStatusCode>(responseMessage.StatusCode());
+                    m_statusText = winrt::to_string(responseMessage.ReasonPhrase());
                     if (!responseMessage.IsSuccessStatusCode())
                     {
                         return arcana::task_from_result<std::exception_ptr>();
