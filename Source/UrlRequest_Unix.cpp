@@ -216,14 +216,17 @@ namespace UrlLib
 
         static size_t HeaderCallback(char* buffer, size_t size, size_t nitems, void* userdata)
         {
-            if (nitems > 0)
+            // libcurl passes the header bytes as `size` chunks of `nitems`; the valid length is
+            // their product. (curl currently always uses size == 1 for headers, but don't rely on it.)
+            const size_t length = size * nitems;
+            if (length > 0)
             {
-                char* bufferEnd = buffer + nitems;
+                char* bufferEnd = buffer + length;
 
                 // Status line: "HTTP/<version> <code>[ <reason>]\r\n". HTTP/1.x carries a reason
                 // phrase; HTTP/2+ omits it. curl delivers a fresh status line for every response
                 // in the chain (e.g. each redirect hop), so reset and let the final one win.
-                if (nitems >= 5 && std::strncmp(buffer, "HTTP/", 5) == 0)
+                if (length >= 5 && std::strncmp(buffer, "HTTP/", 5) == 0)
                 {
                     auto& impl = *static_cast<Impl*>(userdata);
                     impl.m_statusText.clear();
