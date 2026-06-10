@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -62,6 +63,21 @@ namespace UrlLib
         UrlStatusCode StatusCode() const;
 
         std::string_view StatusText() const;
+
+        // Transport-level error reporting. All three return empty/zero when the request did
+        // not fail at the transport layer (note that an HTTP error status like 404 is NOT a
+        // transport failure). ErrorString() is normalized for log-pipeline filtering:
+        //   "<domain>:<symbol>(<code>): <detail>"
+        // where <domain> and <symbol> are stable ASCII tokens (e.g. "curl",
+        // "CURLE_COULDNT_CONNECT") and <detail> is the platform's human-readable message.
+        std::string_view ErrorString() const;
+
+        // The stable, platform-specific symbolic name of the failure, e.g.
+        // "CURLE_COULDNT_RESOLVE_HOST" or "NSURLErrorTimedOut".
+        std::string_view ErrorSymbol() const;
+
+        // The raw numeric platform error code (CURLcode, NSError code, etc.).
+        int32_t ErrorCode() const;
 
         std::string_view ResponseUrl() const;
 
