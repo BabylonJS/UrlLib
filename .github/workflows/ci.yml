@@ -4,27 +4,22 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
 
 jobs:
-  test:
-    name: ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@v4
+  # ── Linux ─────────────────────────────────────────────────────
+  Ubuntu_gcc:
+    uses: ./.github/workflows/build-linux.yml
 
-      - name: Install libcurl headers (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+  Ubuntu_clang:
+    uses: ./.github/workflows/build-linux.yml
+    with:
+      cc: clang
+      cxx: clang++
 
-      - name: Configure
-        run: cmake -B build -D CMAKE_BUILD_TYPE=RelWithDebInfo
-
-      - name: Build
-        run: cmake --build build --parallel
-
-      - name: Test
-        run: ctest --test-dir build --output-on-failure --timeout 300
+  # ── macOS ─────────────────────────────────────────────────────
+  macOS_Xcode164:
+    uses: ./.github/workflows/build-macos.yml
+    with:
+      xcode-version: '16.4'
+      runs-on: macos-latest
