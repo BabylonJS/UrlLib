@@ -18,6 +18,9 @@ target_link_libraries(UrlLibTests
 if(APPLE)
     # The UrlLib static library's NSURLSession-based backend needs Foundation at link time.
     target_link_libraries(UrlLibTests PRIVATE "-framework Foundation")
+elseif(WIN32)
+    # The RefusingPort test fixture uses Winsock directly.
+    target_link_libraries(UrlLibTests PRIVATE ws2_32)
 endif()
 
 set_property(TARGET UrlLibTests PROPERTY FOLDER Tests)

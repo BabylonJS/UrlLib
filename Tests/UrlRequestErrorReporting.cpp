@@ -18,12 +18,71 @@
 #include <regex>
 #include <string>
 
+#if defined(_WIN32)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <process.h>
+#else
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#endif
+
+// The Windows and Android backends do not populate transport-error detail yet (see the
+// platform-support note in README.md). Skip the assertions that depend on it so the gap
+// stays loudly visible in test output without failing the suite.
+#if defined(_WIN32)
+#define SKIP_WITHOUT_TRANSPORT_ERROR_DETAIL() \
+    GTEST_SKIP() << "the Windows backend does not populate transport-error detail yet"
+#else
+#define SKIP_WITHOUT_TRANSPORT_ERROR_DETAIL() (void)0
+#endif
 
 namespace
 {
+#if defined(_WIN32)
+    using NativeSocket = SOCKET;
+    using SocketLength = int;
+    constexpr NativeSocket InvalidSocket = INVALID_SOCKET;
+
+    void CloseSocket(NativeSocket socket)
+    {
+        ::closesocket(socket);
+    }
+
+    bool EnsureSocketsInitialized()
+    {
+        static const bool initialized = [] {
+            WSADATA data{};
+            return ::WSAStartup(MAKEWORD(2, 2), &data) == 0;
+        }();
+        return initialized;
+    }
+
+    int CurrentProcessId()
+    {
+        return ::_getpid();
+    }
+#else
+    using NativeSocket = int;
+    using SocketLength = socklen_t;
+    constexpr NativeSocket InvalidSocket = -1;
+
+    void CloseSocket(NativeSocket socket)
+    {
+        ::close(socket);
+    }
+
+    bool EnsureSocketsInitialized()
+    {
+        return true;
+    }
+
+    int CurrentProcessId()
+    {
+        return ::getpid();
+    }
+#endif
     // Block until SendAsync completes; false on timeout. On timeout the request is
     // aborted and the shared promise keeps the continuation's target alive regardless.
     // (UrlRequest::Abort() currently only interrupts the Windows backend's transport, so
@@ -61,8 +120,13 @@ namespace
     public:
         static std::optional<RefusingPort> Acquire()
         {
-            int fd = ::socket(AF_INET, SOCK_STREAM, 0);
-            if (fd < 0)
+            if (!EnsureSocketsInitialized())
+            {
+                return std::nullopt;
+            }
+
+            NativeSocket fd = ::socket(AF_INET, SOCK_STREAM, 0);
+            if (fd == InvalidSocket)
             {
                 return std::nullopt;
             }
@@ -71,17 +135,17 @@ namespace
             address.sin_family = AF_INET;
             address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
             address.sin_port = 0;
-            socklen_t addressLength = sizeof(address);
+            SocketLength addressLength = static_cast<SocketLength>(sizeof(address));
             if (::bind(fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) != 0 ||
                 ::getsockname(fd, reinterpret_cast<sockaddr*>(&address), &addressLength) != 0)
             {
-                ::close(fd);
+                CloseSocket(fd);
                 return std::nullopt;
             }
 
 #if defined(__APPLE__)
-            ::close(fd);
-            fd = -1;
+            CloseSocket(fd);
+            fd = InvalidSocket;
 #endif
 
             return RefusingPort{fd, ntohs(address.sin_port)};
@@ -91,7 +155,7 @@ namespace
             : m_fd{other.m_fd}
             , m_port{other.m_port}
         {
-            other.m_fd = -1;
+            other.m_fd = InvalidSocket;
         }
 
         RefusingPort(const RefusingPort&) = delete;
@@ -100,9 +164,9 @@ namespace
 
         ~RefusingPort()
         {
-            if (m_fd >= 0)
+            if (m_fd != InvalidSocket)
             {
-                ::close(m_fd);
+                CloseSocket(m_fd);
             }
         }
 
@@ -112,13 +176,13 @@ namespace
         }
 
     private:
-        RefusingPort(int fd, uint16_t port)
+        RefusingPort(NativeSocket fd, uint16_t port)
             : m_fd{fd}
             , m_port{port}
         {
         }
 
-        int m_fd;
+        NativeSocket m_fd;
         uint16_t m_port;
     };
 
@@ -130,7 +194,7 @@ namespace
     public:
         TempFile(const char* tag, const char* contents)
             : m_path{std::filesystem::temp_directory_path() /
-                  ("urllib_error_reporting_" + std::string{tag} + "_" + std::to_string(::getpid()) + ".tmp")}
+                  ("urllib_error_reporting_" + std::string{tag} + "_" + std::to_string(CurrentProcessId()) + ".tmp")}
         {
             std::error_code ignored{};
             std::filesystem::remove(m_path, ignored);
@@ -149,7 +213,10 @@ namespace
 
         std::string Url() const
         {
-            return "file://" + m_path.generic_string();
+            // POSIX generic paths already start with '/' ("file:///tmp/x"); Windows drive
+            // paths do not ("file:///C:/x" needs the third slash added explicitly).
+            const std::string generic = m_path.generic_string();
+            return (!generic.empty() && generic.front() == '/') ? "file://" + generic : "file:///" + generic;
         }
 
     private:
@@ -175,6 +242,8 @@ TEST(UrlRequestErrorReporting, SuccessfulLocalFileReportsNoError)
 
 TEST(UrlRequestErrorReporting, MissingLocalFileReportsError)
 {
+    SKIP_WITHOUT_TRANSPORT_ERROR_DETAIL();
+
     const TempFile missing{"missing", nullptr};
 
     UrlLib::UrlRequest request{};
@@ -194,6 +263,8 @@ TEST(UrlRequestErrorReporting, MissingLocalFileReportsError)
 
 TEST(UrlRequestErrorReporting, ConnectionRefusedReportsError)
 {
+    SKIP_WITHOUT_TRANSPORT_ERROR_DETAIL();
+
     const auto port = RefusingPort::Acquire();
     ASSERT_TRUE(port.has_value());
 
@@ -216,6 +287,8 @@ TEST(UrlRequestErrorReporting, ConnectionRefusedReportsError)
 
 TEST(UrlRequestErrorReporting, DnsResolutionFailureReportsError)
 {
+    SKIP_WITHOUT_TRANSPORT_ERROR_DETAIL();
+
     UrlLib::UrlRequest request{};
     request.Open(UrlLib::UrlMethod::Get, "http://urllib-error-reporting-test.invalid/");
     ASSERT_TRUE(SendAndWait(request));
@@ -235,6 +308,8 @@ TEST(UrlRequestErrorReporting, DnsResolutionFailureReportsError)
 
 TEST(UrlRequestErrorReporting, ErrorStringMatchesGreppableGrammar)
 {
+    SKIP_WITHOUT_TRANSPORT_ERROR_DETAIL();
+
     const auto port = RefusingPort::Acquire();
     ASSERT_TRUE(port.has_value());
 
@@ -250,6 +325,8 @@ TEST(UrlRequestErrorReporting, ErrorStringMatchesGreppableGrammar)
 
 TEST(UrlRequestErrorReporting, ReopenClearsPriorError)
 {
+    SKIP_WITHOUT_TRANSPORT_ERROR_DETAIL();
+
     const auto port = RefusingPort::Acquire();
     ASSERT_TRUE(port.has_value());
 
