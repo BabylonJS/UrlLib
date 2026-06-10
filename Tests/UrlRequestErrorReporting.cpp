@@ -24,8 +24,11 @@
 
 namespace
 {
-    // Block until SendAsync completes. Returns false on timeout (a hung transport), in
-    // which case the shared promise keeps the continuation's target alive regardless.
+    // Block until SendAsync completes; false on timeout. On timeout the request is
+    // aborted and the shared promise keeps the continuation's target alive regardless.
+    // (UrlRequest::Abort() currently only interrupts the Windows backend's transport, so
+    // the timeout is a CI backstop; the scenarios in this suite are offline-deterministic
+    // and complete quickly by construction.)
     [[nodiscard]] bool SendAndWait(UrlLib::UrlRequest& request)
     {
         auto done = std::make_shared<std::promise<void>>();
@@ -36,45 +39,130 @@ namespace
                 done->set_value();
             });
 
-        return future.wait_for(std::chrono::seconds{120}) == std::future_status::ready;
+        if (future.wait_for(std::chrono::seconds{30}) != std::future_status::ready)
+        {
+            request.Abort();
+            return false;
+        }
+
+        return true;
     }
 
-    // Bind an ephemeral loopback port, then close it: connecting to it afterwards is
-    // refused (nothing is listening, and the OS won't immediately reassign it).
-    uint16_t AcquireClosedPort()
+    // A loopback TCP port that deterministically refuses connections. On Linux the socket
+    // is kept bound (reserving the port against reuse by any other process) but never
+    // listen()ed on; SYNs to a bound-but-not-listening port are refused with RST, so the
+    // setup is race-free. On Darwin that same SYN is silently dropped instead (the connect
+    // attempt times out rather than being refused -- verified empirically), so there the
+    // socket is closed after reserving the port number and connects get an immediate RST
+    // from the now-unbound port; the reuse window between close and connect is
+    // microseconds wide, which is acceptable for CI.
+    class RefusingPort
     {
-        const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
-        EXPECT_GE(fd, 0);
+    public:
+        static std::optional<RefusingPort> Acquire()
+        {
+            int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+            if (fd < 0)
+            {
+                return std::nullopt;
+            }
 
-        sockaddr_in address{};
-        address.sin_family = AF_INET;
-        address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-        address.sin_port = 0;
-        EXPECT_EQ(::bind(fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address)), 0);
+            sockaddr_in address{};
+            address.sin_family = AF_INET;
+            address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+            address.sin_port = 0;
+            socklen_t addressLength = sizeof(address);
+            if (::bind(fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) != 0 ||
+                ::getsockname(fd, reinterpret_cast<sockaddr*>(&address), &addressLength) != 0)
+            {
+                ::close(fd);
+                return std::nullopt;
+            }
 
-        socklen_t addressLength = sizeof(address);
-        EXPECT_EQ(::getsockname(fd, reinterpret_cast<sockaddr*>(&address), &addressLength), 0);
-        const uint16_t port = ntohs(address.sin_port);
+#if defined(__APPLE__)
+            ::close(fd);
+            fd = -1;
+#endif
 
-        ::close(fd);
-        return port;
-    }
+            return RefusingPort{fd, ntohs(address.sin_port)};
+        }
 
-    std::filesystem::path WriteTempFile(const char* name, const char* contents)
+        RefusingPort(RefusingPort&& other) noexcept
+            : m_fd{other.m_fd}
+            , m_port{other.m_port}
+        {
+            other.m_fd = -1;
+        }
+
+        RefusingPort(const RefusingPort&) = delete;
+        RefusingPort& operator=(const RefusingPort&) = delete;
+        RefusingPort& operator=(RefusingPort&&) = delete;
+
+        ~RefusingPort()
+        {
+            if (m_fd >= 0)
+            {
+                ::close(m_fd);
+            }
+        }
+
+        std::string Url() const
+        {
+            return "http://127.0.0.1:" + std::to_string(m_port) + "/";
+        }
+
+    private:
+        RefusingPort(int fd, uint16_t port)
+            : m_fd{fd}
+            , m_port{port}
+        {
+        }
+
+        int m_fd;
+        uint16_t m_port;
+    };
+
+    // RAII temp file with a per-process-unique name, so parallel test runs sharing a temp
+    // directory don't collide and no artifacts outlive the test. Pass nullptr contents
+    // for a path that is guaranteed not to exist.
+    class TempFile
     {
-        const auto path = std::filesystem::temp_directory_path() / name;
-        std::ofstream stream{path, std::ios::trunc};
-        stream << contents;
-        return path;
-    }
+    public:
+        TempFile(const char* tag, const char* contents)
+            : m_path{std::filesystem::temp_directory_path() /
+                  ("urllib_error_reporting_" + std::string{tag} + "_" + std::to_string(::getpid()) + ".tmp")}
+        {
+            std::error_code ignored{};
+            std::filesystem::remove(m_path, ignored);
+            if (contents != nullptr)
+            {
+                std::ofstream stream{m_path, std::ios::trunc};
+                stream << contents;
+            }
+        }
+
+        ~TempFile()
+        {
+            std::error_code ignored{};
+            std::filesystem::remove(m_path, ignored);
+        }
+
+        std::string Url() const
+        {
+            return "file://" + m_path.generic_string();
+        }
+
+    private:
+        std::filesystem::path m_path;
+    };
 }
 
 TEST(UrlRequestErrorReporting, SuccessfulLocalFileReportsNoError)
 {
-    const auto path = WriteTempFile("urllib_error_reporting_ok.txt", "hello urllib");
+    const TempFile file{"ok", "hello urllib"};
 
     UrlLib::UrlRequest request{};
-    request.Open(UrlLib::UrlMethod::Get, "file://" + path.generic_string());
+    request.Open(UrlLib::UrlMethod::Get, file.Url());
     request.ResponseType(UrlLib::UrlResponseType::String);
     ASSERT_TRUE(SendAndWait(request));
 
@@ -87,11 +175,10 @@ TEST(UrlRequestErrorReporting, SuccessfulLocalFileReportsNoError)
 
 TEST(UrlRequestErrorReporting, MissingLocalFileReportsError)
 {
-    const auto path = std::filesystem::temp_directory_path() / "urllib_error_reporting_definitely_missing.bin";
-    std::filesystem::remove(path);
+    const TempFile missing{"missing", nullptr};
 
     UrlLib::UrlRequest request{};
-    request.Open(UrlLib::UrlMethod::Get, "file://" + path.generic_string());
+    request.Open(UrlLib::UrlMethod::Get, missing.Url());
     ASSERT_TRUE(SendAndWait(request));
 
     EXPECT_EQ(request.StatusCode(), UrlLib::UrlStatusCode::None);
@@ -107,10 +194,11 @@ TEST(UrlRequestErrorReporting, MissingLocalFileReportsError)
 
 TEST(UrlRequestErrorReporting, ConnectionRefusedReportsError)
 {
-    const uint16_t port = AcquireClosedPort();
+    const auto port = RefusingPort::Acquire();
+    ASSERT_TRUE(port.has_value());
 
     UrlLib::UrlRequest request{};
-    request.Open(UrlLib::UrlMethod::Get, "http://127.0.0.1:" + std::to_string(port) + "/");
+    request.Open(UrlLib::UrlMethod::Get, port->Url());
     ASSERT_TRUE(SendAndWait(request));
 
     EXPECT_EQ(request.StatusCode(), UrlLib::UrlStatusCode::None);
@@ -147,10 +235,11 @@ TEST(UrlRequestErrorReporting, DnsResolutionFailureReportsError)
 
 TEST(UrlRequestErrorReporting, ErrorStringMatchesGreppableGrammar)
 {
-    const uint16_t port = AcquireClosedPort();
+    const auto port = RefusingPort::Acquire();
+    ASSERT_TRUE(port.has_value());
 
     UrlLib::UrlRequest request{};
-    request.Open(UrlLib::UrlMethod::Get, "http://127.0.0.1:" + std::to_string(port) + "/");
+    request.Open(UrlLib::UrlMethod::Get, port->Url());
     ASSERT_TRUE(SendAndWait(request));
 
     // "<domain>:<symbol>(<code>): <detail>" with domain/symbol as stable ASCII tokens.
@@ -161,15 +250,16 @@ TEST(UrlRequestErrorReporting, ErrorStringMatchesGreppableGrammar)
 
 TEST(UrlRequestErrorReporting, ReopenClearsPriorError)
 {
-    const uint16_t port = AcquireClosedPort();
+    const auto port = RefusingPort::Acquire();
+    ASSERT_TRUE(port.has_value());
 
     UrlLib::UrlRequest request{};
-    request.Open(UrlLib::UrlMethod::Get, "http://127.0.0.1:" + std::to_string(port) + "/");
+    request.Open(UrlLib::UrlMethod::Get, port->Url());
     ASSERT_TRUE(SendAndWait(request));
     ASSERT_FALSE(request.ErrorString().empty());
 
-    const auto path = WriteTempFile("urllib_error_reporting_reuse.txt", "reused");
-    request.Open(UrlLib::UrlMethod::Get, "file://" + path.generic_string());
+    const TempFile file{"reuse", "reused"};
+    request.Open(UrlLib::UrlMethod::Get, file.Url());
     EXPECT_TRUE(request.ErrorString().empty()) << request.ErrorString();
     EXPECT_EQ(request.ErrorCode(), 0);
 
