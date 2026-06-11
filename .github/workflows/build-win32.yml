@@ -23,6 +23,9 @@ jobs:
       - name: Enable Crash Dumps
         shell: cmd
         run: |
+          rem WER does not reliably create a custom DumpFolder at crash time; make sure it
+          rem exists before the registry points at it.
+          if not exist "%RUNNER_TEMP%\Dumps" mkdir "%RUNNER_TEMP%\Dumps"
           reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\UrlLibTests.exe" /f
           reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\UrlLibTests.exe" /v DumpType /t REG_DWORD /d 2 /f
           reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\UrlLibTests.exe" /v DumpCount /t REG_DWORD /d 1 /f
