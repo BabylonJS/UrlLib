@@ -16,8 +16,11 @@ diagnosable from logs and crash reports, `UrlRequest` additionally exposes:
   `NSURLErrorTimedOut`)
 * `ErrorCode()` — the raw numeric platform code (CURLcode, NSError code, ...)
 
-All three are empty/zero when the request did not fail at the transport layer; an HTTP
-error status such as 404 is **not** a transport failure.
+`ErrorString()` and `ErrorSymbol()` are empty (and `ErrorCode()` is 0) when the request did
+not fail at the transport layer; an HTTP error status such as 404 is **not** a transport
+failure. To detect a transport failure, test whether `ErrorString()` (or `ErrorSymbol()`) is
+non-empty rather than checking `ErrorCode() != 0`: a genuine failure can carry a zero code
+(for example, a missing `app:///` resource reports `AppResourceNotFound` with code `0`).
 
 Examples:
 

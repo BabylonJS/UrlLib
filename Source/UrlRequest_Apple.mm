@@ -59,6 +59,15 @@ namespace
             default: return "NSURLError_" + std::to_string(static_cast<long>(code));
         }
     }
+
+    // Safely convert an NSString* to std::string. [nil UTF8String] (and, rarely, a UTF-8
+    // encoding failure) yields a null pointer, and std::string{nullptr} is undefined
+    // behavior, so fall back to an empty string.
+    std::string ToStdString(NSString* string)
+    {
+        const char* utf8{[string UTF8String]};
+        return utf8 != nullptr ? std::string{utf8} : std::string{};
+    }
 }
 
 namespace UrlLib
@@ -146,11 +155,11 @@ namespace UrlLib
                     }
                     else
                     {
-                        domain = [error.domain UTF8String];
+                        domain = ToStdString(error.domain);
                         symbol = "NSError_" + std::to_string(static_cast<long>(error.code));
                     }
 
-                    std::string detail{[[error localizedDescription] UTF8String]};
+                    std::string detail{ToStdString([error localizedDescription])};
 
                     // Walk the underlying-error chain (bounded), appending only levels that carry
                     // a different numeric code, so POSIX-level specifics like "Connection refused"
@@ -163,9 +172,9 @@ namespace UrlLib
                         if (underlying.code != previousCode)
                         {
                             detail += " <- ";
-                            detail += [underlying.domain UTF8String];
+                            detail += ToStdString(underlying.domain);
                             detail += "(" + std::to_string(static_cast<long>(underlying.code)) + "): ";
-                            detail += [[underlying localizedDescription] UTF8String];
+                            detail += ToStdString([underlying localizedDescription]);
                         }
                         previousCode = underlying.code;
                         underlying = underlying.userInfo[NSUnderlyingErrorKey];

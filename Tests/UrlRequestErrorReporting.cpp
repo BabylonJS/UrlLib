@@ -301,8 +301,13 @@ TEST(UrlRequestErrorReporting, DnsResolutionFailureReportsError)
     EXPECT_EQ(request.ErrorString().substr(0, 6), "nsurl:") << request.ErrorString();
     EXPECT_NE(request.ErrorCode(), 0) << request.ErrorString();
 #else
-    EXPECT_EQ(request.ErrorSymbol(), "CURLE_COULDNT_RESOLVE_HOST") << request.ErrorString();
-    EXPECT_EQ(request.ErrorCode(), 6) << request.ErrorString();
+    // Normally CURLE_COULDNT_RESOLVE_HOST(6). Under a proxy this can surface as
+    // CURLE_COULDNT_RESOLVE_PROXY(5), and a DNS-hijacking resolver that hands back an address
+    // for an .invalid name can turn this into a later connect failure. Require a curl transport
+    // error with a non-zero code rather than pinning the exact symbol; the exact symbols are
+    // asserted by the ConnectionRefused and MissingLocalFile cases.
+    EXPECT_EQ(request.ErrorString().substr(0, 5), "curl:") << request.ErrorString();
+    EXPECT_NE(request.ErrorCode(), 0) << request.ErrorString();
 #endif
 }
 
@@ -356,6 +361,10 @@ TEST(UrlRequestErrorReporting, MissingAppResourceReportsError)
 
     EXPECT_EQ(request.StatusCode(), UrlLib::UrlStatusCode::None);
     EXPECT_EQ(request.ErrorSymbol(), "AppResourceNotFound") << request.ErrorString();
+    // A genuine failure that intentionally reports code 0, so consumers must key off
+    // ErrorString()/ErrorSymbol() emptiness -- not ErrorCode() -- to detect failures.
+    EXPECT_EQ(request.ErrorCode(), 0) << request.ErrorString();
+    EXPECT_FALSE(request.ErrorString().empty());
     const std::string errorString{request.ErrorString()};
     EXPECT_NE(errorString.find("urllib:AppResourceNotFound(0): "), std::string::npos) << errorString;
     EXPECT_NE(errorString.find("app:///urllib_error_reporting_missing.js"), std::string::npos) << errorString;

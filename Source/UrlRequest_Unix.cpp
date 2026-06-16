@@ -258,8 +258,10 @@ namespace UrlLib
                     catch (const std::exception& e)
                     {
                         // Keep status 0 and record why. Without this catch the exception would
-                        // escape this std::thread and call std::terminate.
-                        SetError("curl", "CURLE_GETINFO_FAILED", -1, e.what());
+                        // escape this std::thread and call std::terminate. "GetInfoFailed" is not
+                        // a real CURLcode, so it deliberately omits the "CURLE_" prefix to avoid
+                        // implying libcurl produced this code.
+                        SetError("curl", "GetInfoFailed", -1, e.what());
                     }
                 }
 
