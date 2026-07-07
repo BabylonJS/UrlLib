@@ -494,10 +494,8 @@ TEST(UrlRequestErrorReporting, AbortInterruptsInFlightRequest)
     EXPECT_EQ(request.ErrorCode(), -999) << request.ErrorString();
 #else
     // The guarantee under test is that Abort() interrupts the request promptly (the bounded wait
-    // above) and records a transport error. The exact CURLcode depends on libcurl internals/timing:
-    // the progress callback returning the abort yields CURLE_ABORTED_BY_CALLBACK, but once the
-    // socket is shut down libcurl may instead surface a recv/gotnothing error -- so assert a curl
-    // transport error rather than pinning one symbol.
+    // above) and records a curl transport error. Assert the "curl:" prefix rather than pinning the
+    // exact CURLcode, which can vary with libcurl internals/timing.
     EXPECT_EQ(request.ErrorString().substr(0, 5), "curl:") << request.ErrorString();
 #endif
 }
