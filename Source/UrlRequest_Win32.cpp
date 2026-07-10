@@ -40,13 +40,13 @@ namespace UrlLib
         }
         catch (const winrt::hresult_error& error)
         {
-            // Retain the default status code of 0 to indicate a client-side error, but
-            // capture the real WinRT error into the status text instead of discarding it,
-            // so the failure is diagnosable (e.g. surfaced via XMLHttpRequest.statusText).
-            std::ostringstream message;
-            message << winrt::to_string(error.message()) << " (HRESULT 0x" << std::hex << std::uppercase
-                    << static_cast<uint32_t>(error.code()) << ")";
-            m_statusText = message.str();
+            // Retain the default status code of 0 to indicate a client-side (transport)
+            // error, but record the WinRT failure via SetError -- consistent with the
+            // curl/NSURL backends -- so it is diagnosable through
+            // ErrorString()/ErrorSymbol()/ErrorCode() instead of being silently discarded.
+            std::ostringstream symbol;
+            symbol << "0x" << std::hex << std::uppercase << static_cast<uint32_t>(error.code());
+            SetError("winrt", symbol.str(), static_cast<int32_t>(error.code()), winrt::to_string(error.message()));
             return arcana::task_from_result<std::exception_ptr>();
         }
     }
