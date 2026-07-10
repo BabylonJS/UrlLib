@@ -132,6 +132,15 @@ namespace UrlLib
                 mutableRequest.HTTPBody = requestBodyData;
             }
 
+            if (@available(macOS 11.3, iOS 14.5, *))
+            {
+                // Let NSURLSession attempt HTTP/3 (QUIC) for this request directly instead of
+                // waiting to learn h3 support from a prior response's Alt-Svc header; the stack
+                // races QUIC against TCP and falls back to h2/h1.1 when the server lacks h3.
+                // HTTP/2 has been automatic via ALPN since iOS 9 / macOS 10.11.
+                mutableRequest.assumesHTTP3Capable = YES;
+            }
+
             request = [mutableRequest copy];
 
             __block arcana::task_completion_source<void, std::exception_ptr> taskCompletionSource{};

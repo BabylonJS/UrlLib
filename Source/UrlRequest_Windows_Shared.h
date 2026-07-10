@@ -7,6 +7,7 @@
 #include <robuffer.h>
 #include <winrt/Windows.Storage.Streams.h>
 #include <winrt/Windows.Web.Http.h>
+#include <winrt/Windows.Web.Http.Filters.h>
 #include <winrt/Windows.ApplicationModel.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Web.Http.Headers.h>
@@ -95,7 +96,13 @@ namespace UrlLib
                 );
             }
 
-            Web::Http::HttpClient client;
+            // Explicitly allow HTTP/2 (negotiated via ALPN for https, supported since
+            // Windows 10 1607) rather than relying on the OS-build default for MaxVersion.
+            // HTTP/3 has no knob in Windows.Web.Http -- HttpVersion caps at Http20; it
+            // arrives with a WinHTTP-based backend (see the Readme's HTTP versions matrix).
+            Web::Http::Filters::HttpBaseProtocolFilter filter;
+            filter.MaxVersion(Web::Http::HttpVersion::Http20);
+            Web::Http::HttpClient client{filter};
             return arcana::create_task<std::exception_ptr>(client.SendRequestAsync(requestMessage))
                 .then(arcana::inline_scheduler, m_cancellationSource, [this](Web::Http::HttpResponseMessage responseMessage)
                 {
