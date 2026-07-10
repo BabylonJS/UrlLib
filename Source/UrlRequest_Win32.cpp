@@ -38,9 +38,15 @@ namespace UrlLib
                 return LoadHttpAsync();
             }
         }
-        catch (winrt::hresult_error)
+        catch (const winrt::hresult_error& error)
         {
-            // Catch WinRT exceptions, but retain the default status code of 0 to indicate a client side error.
+            // Retain the default status code of 0 to indicate a client-side error, but
+            // capture the real WinRT error into the status text instead of discarding it,
+            // so the failure is diagnosable (e.g. surfaced via XMLHttpRequest.statusText).
+            std::ostringstream message;
+            message << winrt::to_string(error.message()) << " (HRESULT 0x" << std::hex << std::uppercase
+                    << static_cast<uint32_t>(error.code()) << ")";
+            m_statusText = message.str();
             return arcana::task_from_result<std::exception_ptr>();
         }
     }
