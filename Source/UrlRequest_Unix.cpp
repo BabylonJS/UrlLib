@@ -150,24 +150,41 @@ namespace UrlLib
                 // the transfer; see the error handling in PerformAsync.
                 curl_check(curl_easy_setopt(m_curl, CURLOPT_ERRORBUFFER, m_curlErrorBuffer.data()));
 
-                // Prefer the newest HTTP version this libcurl build supports, detected at
-                // runtime so the same binary upgrades transparently with the system curl.
-                // These options only affect https:// transfers (plain http:// and file://
-                // stay HTTP/1.1), and both negotiate downward when the server lacks support.
-                const auto* versionInfo = curl_version_info(CURLVERSION_NOW);
-#if defined(CURL_VERSION_HTTP3)
-                // HTTP/3 with fallback. Gated on runtime curl >= 8.0.0: earlier curls treat
-                // CURL_HTTP_VERSION_3 as h3-or-fail instead of h3-with-fallback.
-                if ((versionInfo->features & CURL_VERSION_HTTP3) && versionInfo->version_num >= 0x080000)
+                // HTTP/2 and HTTP/3 are TLS-only, so only opt https:// transfers into a newer
+                // version; file://, app:// (rewritten to file above), and plain http:// keep
+                // libcurl's default. The version this build supports is detected at runtime so
+                // the same binary upgrades transparently with the system curl, and every value
+                // negotiates downward when the server or transport lacks support.
+                //
+                // The compile-time guards below key off LIBCURL_VERSION_NUM (a real macro from
+                // curlver.h) rather than the CURL_HTTP_VERSION_* constants: those are enum
+                // values, invisible to the preprocessor, so `#if defined(CURL_HTTP_VERSION_3)`
+                // would silently always be false. CURL_HTTP_VERSION_2TLS arrived in 7.47.0 and
+                // CURL_HTTP_VERSION_3 in 7.66.0.
+                if (scheme != nullptr && std::strcmp(scheme, "https") == 0)
                 {
-                    curl_check(curl_easy_setopt(m_curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_3));
-                }
-                else
+                    const auto* versionInfo = curl_version_info(CURLVERSION_NOW);
+                    long httpVersion = CURL_HTTP_VERSION_NONE;
+#if LIBCURL_VERSION_NUM >= 0x074200 /* 7.66.0 */
+                    // HTTP/3 with fallback. The runtime >= 8.0.0 gate matters because earlier
+                    // curls treat CURL_HTTP_VERSION_3 as h3-or-fail instead of h3-with-fallback.
+                    if ((versionInfo->features & CURL_VERSION_HTTP3) && versionInfo->version_num >= 0x080000)
+                    {
+                        httpVersion = CURL_HTTP_VERSION_3;
+                    }
+                    else
 #endif
-                if (versionInfo->features & CURL_VERSION_HTTP2)
-                {
-                    // HTTP/2 over TLS via ALPN, HTTP/1.1 otherwise.
-                    curl_check(curl_easy_setopt(m_curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS));
+#if LIBCURL_VERSION_NUM >= 0x072F00 /* 7.47.0 */
+                    if (versionInfo->features & CURL_VERSION_HTTP2)
+                    {
+                        // HTTP/2 over TLS via ALPN, HTTP/1.1 otherwise.
+                        httpVersion = CURL_HTTP_VERSION_2TLS;
+                    }
+#endif
+                    if (httpVersion != CURL_HTTP_VERSION_NONE)
+                    {
+                        curl_check(curl_easy_setopt(m_curl, CURLOPT_HTTP_VERSION, httpVersion));
+                    }
                 }
             }
         }
