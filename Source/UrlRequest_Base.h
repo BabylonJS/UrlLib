@@ -82,6 +82,10 @@ namespace UrlLib
         // Invokes the registered resolver and populates the response state. A resolver that reports
         // the URL as not handled (e.g. a revoked blob: URL) leaves the status at 0 (None) and
         // records a transport-style error, mirroring how a genuine network failure surfaces.
+        // The pending resolver is consumed here so a second SendAsync() on the same request does not
+        // re-run the resolver (which could re-trigger side effects or clobber the response); the
+        // resolved response state is retained and IsSchemeResolution() stays true so ResponseBuffer()
+        // keeps serving the resolved bytes.
         void ResolveScheme()
         {
             if (!m_pendingResolver)
@@ -89,12 +93,18 @@ namespace UrlLib
                 return;
             }
 
-            const UrlSchemeResolverResult result = m_pendingResolver(m_pendingResolverUrl);
-            m_responseUrl = m_pendingResolverUrl;
+            // Move the resolver/url out and clear them before invoking, so this runs exactly once.
+            const UrlSchemeResolver resolver = std::move(m_pendingResolver);
+            const std::string url = std::move(m_pendingResolverUrl);
+            m_pendingResolver = nullptr;
+            m_pendingResolverUrl.clear();
+
+            const UrlSchemeResolverResult result = resolver(url);
+            m_responseUrl = url;
 
             if (!result.handled)
             {
-                SetError("urllib", "SchemeResolverNotFound", 0, "no live entry for '" + m_pendingResolverUrl + "'");
+                SetError("urllib", "SchemeResolverNotFound", 0, "no live entry for '" + url + "'");
                 return;
             }
 
