@@ -248,14 +248,13 @@ TEST(SchemeResolver, UnregisterStopsDivertingScheme)
         afterUnregister.Open(UrlLib::UrlMethod::Get, scheme + ":anything");
 
         // Not diverted, so this now goes to the real transport. Whether it settles inline or on a
-        // worker thread, it must not produce the resolver's response.
+        // worker thread, it must not produce the resolver's response. An in-flight request is left
+        // to wind down through the request's own destructor rather than an explicit Abort(): on the
+        // NSURLSession backend an explicit abort perturbs the shared session and surfaces as a
+        // spurious NSURLErrorCancelled (-999) in subsequent tests.
         if (SendCompletesSynchronously(afterUnregister))
         {
             EXPECT_NE(afterUnregister.StatusCode(), UrlLib::UrlStatusCode::Ok);
-        }
-        else
-        {
-            afterUnregister.Abort(); // wind down the in-flight transport request
         }
     }
     catch (...)
