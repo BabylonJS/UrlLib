@@ -18,13 +18,22 @@ namespace
     }
 
     // Scheme resolution is synchronous: SendAsync() returns an already-completed task, so the inline
-    // continuation runs before this helper returns, leaving the request fully populated.
+    // continuation runs before this returns. The flag is held by shared_ptr rather than captured by
+    // reference so the continuation stays safe even if a caller uses this on a request that was NOT
+    // diverted to a resolver and therefore completes later on the real transport.
+    bool SendCompletesSynchronously(UrlLib::UrlRequest& request)
+    {
+        auto completed = std::make_shared<std::atomic<bool>>(false);
+        request.SendAsync().then(arcana::inline_scheduler, arcana::cancellation::none(),
+            [completed](const arcana::expected<void, std::exception_ptr>&) { completed->store(true); });
+        return completed->load();
+    }
+
+    // Sends a request that is expected to be served by a scheme resolver, so it settles inline and
+    // leaves the request fully populated by the time this returns.
     void Send(UrlLib::UrlRequest& request)
     {
-        bool completed = false;
-        request.SendAsync().then(arcana::inline_scheduler, arcana::cancellation::none(),
-            [&completed](const arcana::expected<void, std::exception_ptr>&) { completed = true; });
-        ASSERT_TRUE(completed);
+        ASSERT_TRUE(SendCompletesSynchronously(request));
     }
 }
 
@@ -205,12 +214,16 @@ TEST(SchemeResolver, RegisteringNullResolverThrows)
     UrlLib::UrlRequest::UnregisterSchemeResolver(scheme);
 }
 
-// After unregistering, the scheme is no longer diverted -- it falls through to the platform
-// transport, which fails on the unknown scheme rather than silently succeeding.
+// After unregistering, the scheme is no longer diverted: the resolver is never invoked again and the
+// request falls through to the platform transport. The transport's outcome for an unknown scheme is
+// platform-specific (it may throw at Open, fail synchronously, or fail asynchronously), so this
+// asserts only the property under test -- that the resolver is no longer consulted.
 TEST(SchemeResolver, UnregisterStopsDivertingScheme)
 {
     const std::string scheme = "urllibtest-unregister";
-    UrlLib::UrlRequest::RegisterSchemeResolver(scheme, [](const std::string&) {
+    auto calls = std::make_shared<std::atomic<int>>(0);
+    UrlLib::UrlRequest::RegisterSchemeResolver(scheme, [calls](const std::string&) {
+        ++*calls;
         UrlLib::UrlSchemeResolverResult result;
         result.handled = true;
         result.statusCode = UrlLib::UrlStatusCode::Ok;
@@ -222,6 +235,7 @@ TEST(SchemeResolver, UnregisterStopsDivertingScheme)
     resolved.Open(UrlLib::UrlMethod::Get, scheme + ":anything");
     Send(resolved);
     EXPECT_EQ(resolved.StatusCode(), UrlLib::UrlStatusCode::Ok);
+    EXPECT_EQ(calls->load(), 1);
 
     UrlLib::UrlRequest::UnregisterSchemeResolver(scheme);
 
@@ -229,19 +243,25 @@ TEST(SchemeResolver, UnregisterStopsDivertingScheme)
     EXPECT_NO_THROW(UrlLib::UrlRequest::UnregisterSchemeResolver(scheme));
 
     UrlLib::UrlRequest afterUnregister;
-    bool opened = true;
     try
     {
         afterUnregister.Open(UrlLib::UrlMethod::Get, scheme + ":anything");
+
+        // Not diverted, so this now goes to the real transport. Whether it settles inline or on a
+        // worker thread, it must not produce the resolver's response.
+        if (SendCompletesSynchronously(afterUnregister))
+        {
+            EXPECT_NE(afterUnregister.StatusCode(), UrlLib::UrlStatusCode::Ok);
+        }
+        else
+        {
+            afterUnregister.Abort(); // wind down the in-flight transport request
+        }
     }
     catch (...)
     {
-        opened = false; // the transport rejected the unknown scheme outright
+        // Some backends reject an unknown scheme outright at Open(); that is also "not diverted".
     }
 
-    if (opened)
-    {
-        Send(afterUnregister);
-        EXPECT_NE(afterUnregister.StatusCode(), UrlLib::UrlStatusCode::Ok);
-    }
+    EXPECT_EQ(calls->load(), 1); // the resolver was not consulted after unregistering
 }
