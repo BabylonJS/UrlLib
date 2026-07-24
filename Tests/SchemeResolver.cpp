@@ -3,7 +3,9 @@
 #include <gtest/gtest.h>
 
 #include <atomic>
+#include <chrono>
 #include <cstddef>
+#include <future>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -34,6 +36,20 @@ namespace
     void Send(UrlLib::UrlRequest& request)
     {
         ASSERT_TRUE(SendCompletesSynchronously(request));
+    }
+
+    // Sends a request that goes to the real platform transport and blocks until it settles. A
+    // request must never be abandoned while in flight: backends complete on their own thread and
+    // write the response into the request's impl through a raw `this`, so letting the request go out
+    // of scope first would corrupt whatever memory the impl's allocation is reused for. Returns
+    // false if the request did not settle within the timeout.
+    bool SendAndWait(UrlLib::UrlRequest& request, std::chrono::seconds timeout = std::chrono::seconds{60})
+    {
+        auto settled = std::make_shared<std::promise<void>>();
+        auto future = settled->get_future();
+        request.SendAsync().then(arcana::inline_scheduler, arcana::cancellation::none(),
+            [settled](const arcana::expected<void, std::exception_ptr>&) { settled->set_value(); });
+        return future.wait_for(timeout) == std::future_status::ready;
     }
 }
 
@@ -247,14 +263,18 @@ TEST(SchemeResolver, UnregisterStopsDivertingScheme)
     {
         afterUnregister.Open(UrlLib::UrlMethod::Get, scheme + ":anything");
 
-        // Not diverted, so this now goes to the real transport. Whether it settles inline or on a
-        // worker thread, it must not produce the resolver's response. An in-flight request is left
-        // to wind down through the request's own destructor rather than an explicit Abort(): on the
-        // NSURLSession backend an explicit abort perturbs the shared session and surfaces as a
-        // spurious NSURLErrorCancelled (-999) in subsequent tests.
-        if (SendCompletesSynchronously(afterUnregister))
+        // Not diverted, so this now goes to the real transport. Wait for it to settle before
+        // leaving scope: some backends (e.g. NSURLSession) neither cancel nor keep the impl alive
+        // for an abandoned request, and their completion handler would then write the response
+        // into freed memory. The transport's verdict on an unknown scheme is platform-specific, so
+        // only assert that it is not the resolver's response.
+        if (SendAndWait(afterUnregister))
         {
             EXPECT_NE(afterUnregister.StatusCode(), UrlLib::UrlStatusCode::Ok);
+        }
+        else
+        {
+            ADD_FAILURE() << "transport request did not settle; leaving it in flight would be unsafe";
         }
     }
     catch (...)
