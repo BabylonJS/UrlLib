@@ -5,6 +5,7 @@
 #include <atomic>
 #include <cstddef>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -55,7 +56,7 @@ TEST(SchemeResolver, HandledResolverPopulatesStringResponse)
     EXPECT_TRUE(request.ErrorSymbol().empty());
     EXPECT_TRUE(request.ErrorString().empty());
 
-    UrlLib::UrlRequest::RegisterSchemeResolver(scheme, nullptr);
+    UrlLib::UrlRequest::UnregisterSchemeResolver(scheme);
 }
 
 // A handled resolver serves the raw bytes for a Buffer response type.
@@ -80,7 +81,7 @@ TEST(SchemeResolver, HandledResolverPopulatesBufferResponse)
     ASSERT_EQ(buffer.size(), static_cast<size_t>(6));
     EXPECT_EQ(std::string(reinterpret_cast<const char*>(buffer.data()), buffer.size()), "world!");
 
-    UrlLib::UrlRequest::RegisterSchemeResolver(scheme, nullptr);
+    UrlLib::UrlRequest::UnregisterSchemeResolver(scheme);
 }
 
 // A resolver that reports handled == false (e.g. a revoked blob: URL) surfaces as a transport-style
@@ -102,7 +103,7 @@ TEST(SchemeResolver, NotHandledResolverSurfacesTransportError)
     EXPECT_FALSE(request.ErrorString().empty());
     EXPECT_TRUE(request.ResponseBuffer().empty());
 
-    UrlLib::UrlRequest::RegisterSchemeResolver(scheme, nullptr);
+    UrlLib::UrlRequest::UnregisterSchemeResolver(scheme);
 }
 
 // The resolver is consumed on the first SendAsync(); a second send does not re-run it (no repeated
@@ -129,5 +130,118 @@ TEST(SchemeResolver, ResolverRunsExactlyOncePerRequest)
     EXPECT_EQ(calls.load(), 1);
     EXPECT_EQ(request.ResponseBuffer().size(), static_cast<size_t>(4));
 
-    UrlLib::UrlRequest::RegisterSchemeResolver(scheme, nullptr);
+    UrlLib::UrlRequest::UnregisterSchemeResolver(scheme);
+}
+
+
+// A handled resolver that leaves statusText empty still reports the canonical reason phrase, since
+// StatusText() falls back to the code->phrase table for the resolver path exactly as it does for
+// the transport path (HTTP/2+ status lines carry no reason phrase).
+TEST(SchemeResolver, EmptyStatusTextFallsBackToReasonPhrase)
+{
+    const std::string scheme = "urllibtest-nostatustext";
+    UrlLib::UrlRequest::RegisterSchemeResolver(scheme, [](const std::string&) {
+        UrlLib::UrlSchemeResolverResult result;
+        result.handled = true;
+        result.statusCode = UrlLib::UrlStatusCode::Ok;
+        result.body = MakeBody("x");
+        return result; // statusText intentionally left empty
+    });
+
+    UrlLib::UrlRequest request;
+    request.Open(UrlLib::UrlMethod::Get, scheme + ":anything");
+    Send(request);
+
+    EXPECT_EQ(request.StatusCode(), UrlLib::UrlStatusCode::Ok);
+    EXPECT_EQ(request.StatusText(), "OK");
+
+    UrlLib::UrlRequest::UnregisterSchemeResolver(scheme);
+}
+
+// A resolver that throws must not let the exception escape SendAsync(); it is reported through the
+// same transport-style error surface as a failed request.
+TEST(SchemeResolver, ThrowingResolverSurfacesTransportError)
+{
+    const std::string scheme = "urllibtest-throws";
+    UrlLib::UrlRequest::RegisterSchemeResolver(scheme, [](const std::string&) -> UrlLib::UrlSchemeResolverResult {
+        throw std::runtime_error{"resolver blew up"};
+    });
+
+    UrlLib::UrlRequest request;
+    request.Open(UrlLib::UrlMethod::Get, scheme + ":anything");
+    request.ResponseType(UrlLib::UrlResponseType::Buffer);
+    EXPECT_NO_THROW(Send(request));
+
+    EXPECT_EQ(request.StatusCode(), UrlLib::UrlStatusCode::None);
+    EXPECT_EQ(request.ErrorSymbol(), "SchemeResolverThrew");
+    EXPECT_NE(std::string{request.ErrorString()}.find("resolver blew up"), std::string::npos);
+    EXPECT_TRUE(request.ResponseBuffer().empty());
+
+    UrlLib::UrlRequest::UnregisterSchemeResolver(scheme);
+}
+
+// Removal is explicit: a null resolver is rejected rather than silently unregistering the scheme.
+TEST(SchemeResolver, RegisteringNullResolverThrows)
+{
+    const std::string scheme = "urllibtest-null";
+    UrlLib::UrlRequest::RegisterSchemeResolver(scheme, [](const std::string&) {
+        UrlLib::UrlSchemeResolverResult result;
+        result.handled = true;
+        result.statusCode = UrlLib::UrlStatusCode::Ok;
+        return result;
+    });
+
+    EXPECT_THROW(UrlLib::UrlRequest::RegisterSchemeResolver(scheme, {}), std::invalid_argument);
+    EXPECT_THROW(UrlLib::UrlRequest::RegisterSchemeResolver("", [](const std::string&) {
+        return UrlLib::UrlSchemeResolverResult{};
+    }), std::invalid_argument);
+
+    // The rejected registration left the existing resolver in place.
+    UrlLib::UrlRequest request;
+    request.Open(UrlLib::UrlMethod::Get, scheme + ":anything");
+    Send(request);
+    EXPECT_EQ(request.StatusCode(), UrlLib::UrlStatusCode::Ok);
+
+    UrlLib::UrlRequest::UnregisterSchemeResolver(scheme);
+}
+
+// After unregistering, the scheme is no longer diverted -- it falls through to the platform
+// transport, which fails on the unknown scheme rather than silently succeeding.
+TEST(SchemeResolver, UnregisterStopsDivertingScheme)
+{
+    const std::string scheme = "urllibtest-unregister";
+    UrlLib::UrlRequest::RegisterSchemeResolver(scheme, [](const std::string&) {
+        UrlLib::UrlSchemeResolverResult result;
+        result.handled = true;
+        result.statusCode = UrlLib::UrlStatusCode::Ok;
+        result.body = MakeBody("still here");
+        return result;
+    });
+
+    UrlLib::UrlRequest resolved;
+    resolved.Open(UrlLib::UrlMethod::Get, scheme + ":anything");
+    Send(resolved);
+    EXPECT_EQ(resolved.StatusCode(), UrlLib::UrlStatusCode::Ok);
+
+    UrlLib::UrlRequest::UnregisterSchemeResolver(scheme);
+
+    // Unregistering an unknown scheme is a no-op, not an error.
+    EXPECT_NO_THROW(UrlLib::UrlRequest::UnregisterSchemeResolver(scheme));
+
+    UrlLib::UrlRequest afterUnregister;
+    bool opened = true;
+    try
+    {
+        afterUnregister.Open(UrlLib::UrlMethod::Get, scheme + ":anything");
+    }
+    catch (...)
+    {
+        opened = false; // the transport rejected the unknown scheme outright
+    }
+
+    if (opened)
+    {
+        Send(afterUnregister);
+        EXPECT_NE(afterUnregister.StatusCode(), UrlLib::UrlStatusCode::Ok);
+    }
 }

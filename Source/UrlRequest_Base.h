@@ -5,6 +5,7 @@
 #include <cctype>
 #include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -30,19 +31,36 @@ namespace UrlLib
         // BeginSchemeResolution is called from Open() to divert a matching URL; ResolveScheme is
         // called from SendAsync() so revoke-after-open is honored; ResolvedResponseBuffer backs
         // ResponseBuffer() for the Buffer response type.
+        //
+        // A null resolver is rejected rather than treated as an implicit removal: a resolver can
+        // capture state that must outlive registration, so silently unregistering on a moved-from
+        // or default-constructed std::function would be an easy mistake to miss. Removal is the
+        // explicit UnregisterSchemeResolver call.
         static void RegisterSchemeResolver(std::string scheme, UrlSchemeResolver resolver)
+        {
+            if (!resolver)
+            {
+                throw std::invalid_argument{"RegisterSchemeResolver: resolver must not be null (use UnregisterSchemeResolver to remove a scheme)"};
+            }
+
+            ToLower(scheme);
+            if (scheme.empty())
+            {
+                throw std::invalid_argument{"RegisterSchemeResolver: scheme must not be empty"};
+            }
+
+            auto& registry = Registry();
+            const std::lock_guard<std::mutex> lock{registry.mutex};
+            registry.resolvers[std::move(scheme)] = std::move(resolver);
+        }
+
+        // Removes the resolver registered for `scheme`, if any. Unknown schemes are ignored.
+        static void UnregisterSchemeResolver(std::string scheme)
         {
             ToLower(scheme);
             auto& registry = Registry();
             const std::lock_guard<std::mutex> lock{registry.mutex};
-            if (resolver)
-            {
-                registry.resolvers[std::move(scheme)] = std::move(resolver);
-            }
-            else
-            {
-                registry.resolvers.erase(scheme);
-            }
+            registry.resolvers.erase(scheme);
         }
 
         // Returns true (and defers the actual work to ResolveScheme()) when `url`'s scheme has a
@@ -80,12 +98,12 @@ namespace UrlLib
         }
 
         // Invokes the registered resolver and populates the response state. A resolver that reports
-        // the URL as not handled (e.g. a revoked blob: URL) leaves the status at 0 (None) and
-        // records a transport-style error, mirroring how a genuine network failure surfaces.
-        // The pending resolver is consumed here so a second SendAsync() on the same request does not
-        // re-run the resolver (which could re-trigger side effects or clobber the response); the
-        // resolved response state is retained and IsSchemeResolution() stays true so ResponseBuffer()
-        // keeps serving the resolved bytes.
+        // the URL as not handled (e.g. a revoked blob: URL) -- or that throws -- leaves the status at
+        // 0 (None) and records a transport-style error, mirroring how a genuine network failure
+        // surfaces. The pending resolver is consumed here so a second SendAsync() on the same request
+        // does not re-run the resolver (which could re-trigger side effects or clobber the response);
+        // the resolved response state is retained and IsSchemeResolution() stays true so
+        // ResponseBuffer() keeps serving the resolved bytes.
         void ResolveScheme()
         {
             if (!m_pendingResolver)
@@ -99,8 +117,26 @@ namespace UrlLib
             m_pendingResolver = nullptr;
             m_pendingResolverUrl.clear();
 
-            const UrlSchemeResolverResult result = resolver(url);
             m_responseUrl = url;
+
+            // A throwing resolver is contained here and reported through the same error surface as
+            // any other failure, so it cannot escape SendAsync() synchronously -- callers observe a
+            // failed request (status 0 + error) exactly as they would for a transport failure.
+            UrlSchemeResolverResult result{};
+            try
+            {
+                result = resolver(url);
+            }
+            catch (const std::exception& e)
+            {
+                SetError("urllib", "SchemeResolverThrew", 0, e.what());
+                return;
+            }
+            catch (...)
+            {
+                SetError("urllib", "SchemeResolverThrew", 0, "unknown exception");
+                return;
+            }
 
             if (!result.handled)
             {

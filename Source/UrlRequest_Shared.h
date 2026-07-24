@@ -39,6 +39,11 @@ namespace UrlLib
         Impl::RegisterSchemeResolver(std::move(scheme), std::move(resolver));
     }
 
+    void UrlRequest::UnregisterSchemeResolver(std::string scheme)
+    {
+        Impl::UnregisterSchemeResolver(std::move(scheme));
+    }
+
     UrlResponseType UrlRequest::ResponseType() const
     {
         return m_impl->ResponseType();

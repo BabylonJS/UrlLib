@@ -63,13 +63,26 @@ namespace UrlLib
 
         void Open(UrlMethod method, const std::string& url);
 
-        // Registers (or, with a null resolver, clears) a resolver for a non-transport URL scheme
-        // such as "blob". Registration is process-global. When a UrlRequest is opened with a URL
-        // whose scheme has a registered resolver, the platform transport is bypassed and the
-        // resolver supplies the response at SendAsync() time, so every consumer (fetch,
-        // XMLHttpRequest, image / video src, texture loaders, ...) resolves such URLs uniformly
-        // through UrlRequest instead of each carrying its own branch.
+        // Registers a resolver for a non-transport URL scheme such as "blob". Registration is
+        // process-global. When a UrlRequest is opened with a URL whose scheme has a registered
+        // resolver, the platform transport is bypassed and the resolver supplies the response at
+        // SendAsync() time, so every consumer (fetch, XMLHttpRequest, image / video src, texture
+        // loaders, ...) resolves such URLs uniformly through UrlRequest instead of each carrying
+        // its own branch.
+        //
+        // A resolver that reports the URL as not handled -- or that throws -- surfaces as a
+        // transport-style failure (status stays None, with an error symbol recorded); an exception
+        // never escapes SendAsync().
+        //
+        // Throws std::invalid_argument if `scheme` is empty or `resolver` is null. Removal is the
+        // explicit UnregisterSchemeResolver call rather than registering an empty std::function, so
+        // a moved-from or default-constructed resolver cannot silently unregister a scheme.
         static void RegisterSchemeResolver(std::string scheme, UrlSchemeResolver resolver);
+
+        // Removes the resolver registered for `scheme`, if any. Unknown schemes are ignored.
+        // In-flight requests already diverted to that resolver are unaffected: each request holds
+        // its own reference to the resolver from the time it was opened.
+        static void UnregisterSchemeResolver(std::string scheme);
 
         UrlResponseType ResponseType() const;
 
