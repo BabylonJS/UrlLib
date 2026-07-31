@@ -46,6 +46,22 @@ Platform support: the Apple (`NSURLSession`) and Linux (`libcurl`) backends popu
 these accessors today; the Windows and Android backends currently always report
 empty/zero (contributions welcome — the plumbing in `UrlRequest_Base.h` is shared).
 
+## HTTP versions
+
+`UrlRequest` opts each backend into the newest HTTP version the platform stack supports,
+negotiating downward automatically — application code never has to care, and plain
+`http://` / `file://` requests are unaffected.
+
+| Platform | Backend | HTTP/2 | HTTP/3 (QUIC) |
+|---|---|---|---|
+| macOS / iOS | `NSURLSession` | automatic (ALPN) since macOS 10.11 / iOS 9 | attempted per request via `assumesHTTP3Capable` on macOS 11.3+ / iOS 14.5+; races QUIC vs TCP with fallback |
+| Linux | libcurl | `CURL_HTTP_VERSION_2TLS` when the runtime curl has nghttp2 (all mainstream distros) | `CURL_HTTP_VERSION_3` (with fallback) when the runtime curl ≥ 8.0 reports `CURL_VERSION_HTTP3` (e.g. Fedora today; other distros as they enable it) |
+| Windows (Win32 + UWP) | `Windows.Web.Http` | `HttpBaseProtocolFilter.MaxVersion = Http20`, negotiated via ALPN; requires Windows 10 1607+ | not exposed by `Windows.Web.Http` (`HttpVersion` caps at `Http20`); planned via a WinHTTP-based backend, which no-ops the h3 flag before Windows 11 and negotiates down |
+| Android | `java.net.HttpURLConnection` | not supported by the platform stack (HTTP/1.1 only) | planned via embedded Cronet (h2 + h3 + Brotli); Quest 1 (Android 10) and Pico 4 (Android 10) clear Cronet's Android 8 minimum |
+
+The Linux detection is at runtime, so the same binary lights up h3 when the system curl
+gains it. No UrlLib build options are required.
+
 ## Contributing
 
 Please read [CONTRIBUTING.md](./CONTRIBUTING.md) for details on our code of conduct, and 
