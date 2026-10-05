@@ -42,9 +42,15 @@ or `"nsurl:NSURLErrorTimedOut"`). The `<detail>` portion is the platform's human
 message — it may be OS-localized on Apple platforms and includes request specifics like
 host, port, and path where the platform provides them.
 
-Platform support: the Apple (`NSURLSession`) and Linux (`libcurl`) backends populate
-these accessors today; the Windows and Android backends currently always report
-empty/zero (contributions welcome — the plumbing in `UrlRequest_Base.h` is shared).
+Platform support: the Apple (`NSURLSession`), Linux (`libcurl`), and Android
+(`URLConnection`) backends populate these accessors. Android reports Java exceptions
+as `java:JavaException(0)` and other read failures as `urllib:ResponseReadFailed(0)`.
+The Windows backend currently reports empty/zero.
+
+Android publishes the HTTP status only after the entire response body has been read.
+A read exception or premature end of a known-length body clears the partial response
+and reports status 0, rather than reporting the already received HTTP status as success.
+Completed HTTP error responses are read from `getErrorStream()` and retain their status.
 
 ## Contributing
 
