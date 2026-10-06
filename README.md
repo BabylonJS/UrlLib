@@ -52,6 +52,12 @@ A read exception or premature end of a known-length body clears the partial resp
 and reports status 0, rather than reporting the already received HTTP status as success.
 Completed HTTP error responses are read from `getErrorStream()` and retain their status.
 
+The Apple backend also checks fixed-length, unencoded HTTP bodies before publishing
+the response: `NSURLSession` can report a truncated HTTP error response without an
+`NSError`. Premature EOF reports `urllib:ResponseReadFailed(0)`. This check excludes
+bodyless statuses and encoded/chunked bodies, whose decoded size is not the wire
+`Content-Length`.
+
 ## Contributing
 
 Please read [CONTRIBUTING.md](./CONTRIBUTING.md) for details on our code of conduct, and 

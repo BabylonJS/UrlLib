@@ -185,16 +185,35 @@ namespace UrlLib
                     return;
                 }
                 
-                if ([response class] == [NSHTTPURLResponse class])
+                if ([response isKindOfClass:[NSHTTPURLResponse class]])
                 {
                     NSHTTPURLResponse* httpResponse{(NSHTTPURLResponse*)response};
-                    m_statusCode = static_cast<UrlStatusCode>(httpResponse.statusCode);
                     
                     for (id key in httpResponse.allHeaderFields)
                     {
                         id value = [httpResponse.allHeaderFields objectForKey:key];
                         m_headers.insert({ToLower([key UTF8String]), [value UTF8String]});
                     }
+
+                    // NSURLSession can complete truncated HTTP error bodies without an NSError.
+                    // NSData is decoded, so only compare an identity, fixed-length body with
+                    // Content-Length; encoded/chunked responses must use the transport's checks.
+                    const auto encoding = m_headers.find("content-encoding");
+                    const bool identity = encoding == m_headers.end() || encoding->second.empty() ||
+                        ToLower(encoding->second.c_str()) == "identity";
+                    if (httpResponse.statusCode != 204 && httpResponse.statusCode != 304 &&
+                        identity && m_headers.find("transfer-encoding") == m_headers.end() &&
+                        response.expectedContentLength >= 0 &&
+                        data.length < static_cast<uint64_t>(response.expectedContentLength))
+                    {
+                        m_headers.clear();
+                        SetError("urllib", "ResponseReadFailed", 0,
+                            "Response body ended before Content-Length bytes were received");
+                        taskCompletionSource.complete();
+                        return;
+                    }
+
+                    m_statusCode = static_cast<UrlStatusCode>(httpResponse.statusCode);
                 }
                 else
                 {
