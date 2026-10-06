@@ -255,6 +255,10 @@ namespace
                     }
                     else
                     {
+#if defined(__APPLE__)
+                        const int noSignal = 1;
+                        ::setsockopt(connection, SOL_SOCKET, SO_NOSIGPIPE, &noSignal, sizeof(noSignal));
+#endif
                         if (capturedRequest)
                         {
 #if defined(_WIN32)
@@ -392,12 +396,18 @@ namespace
     };
 }
 
-#if defined(_WIN32)
 namespace
 {
-    class WindowsHttp : public testing::Test
+    class HttpPost : public testing::Test
     {
     protected:
+        void SetUp() override
+        {
+#if !defined(_WIN32) && !defined(__APPLE__)
+            GTEST_SKIP() << "the Linux backend does not implement POST yet";
+#endif
+        }
+
         void CheckPost(std::optional<std::string> headerName, const std::string& body,
             const std::string& contentType = "application/json")
         {
@@ -433,12 +443,51 @@ namespace
             {
                 EXPECT_NE(headers.find("\r\ncontent-type: " + contentType + "\r\n"), std::string::npos);
             }
+#if defined(_WIN32)
             else
             {
                 EXPECT_EQ(headers.find("\r\ncontent-type:"), std::string::npos);
             }
+#endif
         }
+    };
+}
 
+TEST_F(HttpPost, JsonContentTypeIsCaseInsensitive)
+{
+    for (const auto* name : {"Content-Type", "content-type", "CoNtEnT-TyPe"})
+    {
+        SCOPED_TRACE(name);
+        CheckPost(name, "{\"message\":\"caf\xC3\xA9\"}\n");
+    }
+}
+
+TEST_F(HttpPost, WithoutContentType)
+{
+    CheckPost(std::nullopt, "plain text\r\n");
+    CheckPost(std::nullopt, "");
+}
+
+TEST_F(HttpPost, PreservesContentTypeParameters)
+{
+    CheckPost("content-type", "{\"ready\":true}", "application/json; charset=utf-8");
+}
+
+TEST_F(HttpPost, PreservesRawBodyBytes)
+{
+    for (const auto& body : {std::string{"a\0b", 3}, std::string{"\x80\xff\r\n", 4},
+        std::string{"\0\x80\xff\r\n", 5}})
+    {
+        CheckPost("content-type", body, "application/octet-stream");
+    }
+}
+
+#if defined(_WIN32)
+namespace
+{
+    class WindowsHttp : public testing::Test
+    {
+    protected:
         void CheckResponse(const std::string& wire, int status, std::string_view body,
             std::optional<std::string> contentType)
         {
@@ -483,31 +532,6 @@ TEST_F(WindowsHttp, MissingContentTypePreservesBody)
 {
     CheckResponse("HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello",
         200, "hello", std::nullopt);
-}
-
-TEST_F(WindowsHttp, JsonPostContentTypeIsCaseInsensitive)
-{
-    for (const auto* name : {"Content-Type", "content-type", "CoNtEnT-TyPe"})
-    {
-        SCOPED_TRACE(name);
-        CheckPost(name, "{\"message\":\"caf\xC3\xA9\"}\n");
-    }
-}
-
-TEST_F(WindowsHttp, PostWithoutContentType)
-{
-    CheckPost(std::nullopt, "plain text\r\n");
-    CheckPost(std::nullopt, "");
-}
-
-TEST_F(WindowsHttp, PostPreservesContentTypeParameters)
-{
-    CheckPost("content-type", "{\"ready\":true}", "application/json; charset=utf-8");
-}
-
-TEST_F(WindowsHttp, PostPreservesRawBodyBytes)
-{
-    CheckPost("content-type", std::string{"\0\x80\xff\r\n", 5}, "application/octet-stream");
 }
 
 TEST_F(WindowsHttp, PostRejectsInvalidContentType)

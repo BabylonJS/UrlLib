@@ -102,6 +102,10 @@ not the request headers. Bodies are sent byte-for-byte without UTF-8 transcoding
 automatically added charset. Omitted Content-Type stays absent; supplied MIME parameters
 are preserved, and an invalid supplied MIME type reports a transport error rather than success.
 
+Apple POST also preserves body bytes, using length-aware NSData rather than a
+NUL-terminated UTF-8 string. The shared POST wire tests run on Windows and Apple;
+Linux explicitly skips them because its backend does not implement POST yet.
+
 ## Contributing
 
 Please read [CONTRIBUTING.md](./CONTRIBUTING.md) for details on our code of conduct, and 
