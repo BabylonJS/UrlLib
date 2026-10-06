@@ -84,20 +84,22 @@ namespace UrlLib
             requestMessage.RequestUri(m_uri);
             requestMessage.Method(ConvertHttpMethod(m_method));
 
-            std::optional<std::string_view> contentType;
+            std::optional<std::string> contentType;
 
-            for (const auto& request : m_requestHeaders)
+            for (auto& request : m_requestHeaders)
             {
                 // content type needs to be set separately
                 if (ToLower(request.first.c_str()) == "content-type")
                 {
-                    contentType = request.second;
+                    contentType = std::move(request.second);
                 }
                 else
                 {
                     requestMessage.Headers().Append(winrt::to_hstring(request.first), winrt::to_hstring(request.second));
                 }
             }
+
+            m_requestHeaders.clear();
 
             if (m_method == UrlMethod::Post)
             {
@@ -116,8 +118,6 @@ namespace UrlLib
                 }
                 requestMessage.Content(content);
             }
-
-            m_requestHeaders.clear();
 
             Web::Http::HttpClient client;
             return arcana::create_task<std::exception_ptr>(client.SendRequestAsync(requestMessage))

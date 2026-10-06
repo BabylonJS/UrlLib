@@ -8,6 +8,7 @@
 #include <arcana/threading/cancellation.h>
 
 #include <gtest/gtest.h>
+#include <gsl/util>
 
 #include <algorithm>
 #include <cctype>
@@ -213,7 +214,7 @@ namespace
     {
     public:
         explicit HangingServer(std::string response = {}, std::promise<std::string>* capturedRequest = nullptr,
-            size_t requestBodyLength = 0)
+            size_t requestBodyLength = 0, std::promise<void>* connectionAccepted = nullptr)
         {
             if (!EnsureSocketsInitialized())
             {
@@ -241,13 +242,19 @@ namespace
 
             m_listener = listener;
             m_port = ntohs(address.sin_port);
-            m_acceptThread = std::thread{[this, response = std::move(response), capturedRequest, requestBodyLength]() mutable {
+            m_acceptThread = std::thread{[this, response = std::move(response), capturedRequest,
+                requestBodyLength, connectionAccepted]() mutable {
                 for (;;)
                 {
                     NativeSocket connection = ::accept(m_listener, nullptr, nullptr);
                     if (connection == InvalidSocket)
                     {
                         break; // listener closed during teardown
+                    }
+                    if (connectionAccepted)
+                    {
+                        connectionAccepted->set_value();
+                        connectionAccepted = nullptr;
                     }
                     if (response.empty())
                     {
@@ -259,15 +266,17 @@ namespace
                         const int noSignal = 1;
                         ::setsockopt(connection, SOL_SOCKET, SO_NOSIGPIPE, &noSignal, sizeof(noSignal));
 #endif
-                        if (capturedRequest)
-                        {
 #if defined(_WIN32)
-                            const DWORD timeout = 5000;
+                        const DWORD timeout = 5000;
 #else
-                            const timeval timeout{5, 0};
+                        const timeval timeout{5, 0};
 #endif
-                            ::setsockopt(connection, SOL_SOCKET, SO_RCVTIMEO,
-                                reinterpret_cast<const char*>(&timeout), sizeof(timeout));
+                        if (::setsockopt(connection, SOL_SOCKET, SO_RCVTIMEO,
+                            reinterpret_cast<const char*>(&timeout), sizeof(timeout)) != 0)
+                        {
+                            ShutdownSocket(connection);
+                            CloseSocket(connection);
+                            continue;
                         }
                         char chunk[4096];
                         std::string request;
@@ -349,6 +358,11 @@ namespace
         std::string Url() const
         {
             return "http://127.0.0.1:" + std::to_string(m_port) + "/";
+        }
+
+        uint16_t Port() const
+        {
+            return m_port;
         }
 
     private:
@@ -534,9 +548,13 @@ TEST_F(WindowsHttp, MissingContentTypePreservesBody)
         200, "hello", std::nullopt);
 }
 
-TEST_F(WindowsHttp, PostRejectsInvalidContentType)
+TEST_F(WindowsHttp, PostRejectsInvalidContentTypeAndCanReopen)
 {
-    HangingServer server{"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"};
+    const std::string body = "reopened without Content-Type";
+    std::promise<std::string> capturedRequest;
+    auto wire = capturedRequest.get_future();
+    HangingServer server{"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        &capturedRequest, body.size()};
     ASSERT_TRUE(server.Valid());
     UrlLib::UrlRequest request;
     request.Open(UrlLib::UrlMethod::Post, server.Url());
@@ -547,6 +565,21 @@ TEST_F(WindowsHttp, PostRejectsInvalidContentType)
     EXPECT_FALSE(request.ErrorString().empty());
     EXPECT_TRUE(request.ResponseString().empty());
     EXPECT_TRUE(request.GetAllResponseHeaders().empty());
+
+    request.Open(UrlLib::UrlMethod::Post, server.Url());
+    request.SetRequestBody(body);
+    ASSERT_TRUE(SendAndWait(request));
+    ASSERT_EQ(request.StatusCode(), UrlLib::UrlStatusCode::Ok) << request.ErrorString();
+    EXPECT_TRUE(request.ErrorString().empty());
+    ASSERT_EQ(wire.wait_for(std::chrono::seconds{5}), std::future_status::ready);
+    const auto sent = wire.get();
+    const auto headerEnd = sent.find("\r\n\r\n");
+    ASSERT_NE(headerEnd, std::string::npos);
+    EXPECT_EQ(sent.substr(headerEnd + 4), body);
+    std::string headers = sent.substr(0, headerEnd);
+    std::transform(headers.begin(), headers.end(), headers.begin(),
+        [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
+    EXPECT_EQ(headers.find("\r\ncontent-type:"), std::string::npos);
 }
 
 TEST_F(WindowsHttp, MissingContentTypeWithEmptyBody)
@@ -596,6 +629,35 @@ TEST_F(WindowsHttp, ConnectionFailureIsNotSuccess)
     EXPECT_TRUE(request.GetAllResponseHeaders().empty());
 }
 #endif
+
+TEST(LoopbackServer, IdleResponseConnectionDoesNotBlockTeardown)
+{
+    std::promise<void> accepted;
+    auto acceptedFuture = accepted.get_future();
+    auto server = std::make_unique<HangingServer>(
+        "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", nullptr, 0, &accepted);
+    ASSERT_TRUE(server->Valid());
+    const NativeSocket connection = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_NE(connection, InvalidSocket);
+    auto closeConnection = gsl::finally([connection] { CloseSocket(connection); });
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    address.sin_port = htons(server->Port());
+    ASSERT_EQ(::connect(connection, reinterpret_cast<const sockaddr*>(&address), sizeof(address)), 0);
+    ASSERT_EQ(acceptedFuture.wait_for(std::chrono::seconds{5}), std::future_status::ready);
+
+    std::promise<void> destroyed;
+    auto destroyedFuture = destroyed.get_future();
+    std::thread teardown{[server = std::move(server), &destroyed]() mutable {
+        server.reset();
+        destroyed.set_value();
+    }};
+    const auto completion = destroyedFuture.wait_for(std::chrono::seconds{10});
+    ShutdownSocket(connection);
+    teardown.join();
+    EXPECT_EQ(completion, std::future_status::ready);
+}
 
 TEST(UrlRequestErrorReporting, SuccessfulLocalFileReportsNoError)
 {
