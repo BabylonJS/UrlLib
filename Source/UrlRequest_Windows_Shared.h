@@ -1,5 +1,7 @@
 #include "UrlRequest_Base.h"
 
+#include <cstring>
+#include <gsl/narrow>
 #include <sstream>
 #include <Unknwn.h>
 #include <PathCch.h>
@@ -82,12 +84,12 @@ namespace UrlLib
             requestMessage.RequestUri(m_uri);
             requestMessage.Method(ConvertHttpMethod(m_method));
 
-            std::string contentType;
+            std::optional<std::string_view> contentType;
 
-            for (auto request : m_requestHeaders)
+            for (const auto& request : m_requestHeaders)
             {
                 // content type needs to be set separately
-                if (request.first == "Content-Type")
+                if (ToLower(request.first.c_str()) == "content-type")
                 {
                     contentType = request.second;
                 }
@@ -97,18 +99,25 @@ namespace UrlLib
                 }
             }
 
-            m_requestHeaders.clear();
-
-            // check the method
             if (m_method == UrlMethod::Post)
             {
-                // if post, set the content type
-                requestMessage.Content(Web::Http::HttpStringContent(
-                    winrt::to_hstring(m_requestBody),
-                    winrt::Windows::Storage::Streams::UnicodeEncoding::Utf8,
-                    winrt::to_hstring(contentType))
-                );
+                Storage::Streams::Buffer buffer{gsl::narrow<uint32_t>(m_requestBody.size())};
+                buffer.Length(buffer.Capacity());
+                if (!m_requestBody.empty())
+                {
+                    uint8_t* bytes{};
+                    winrt::check_hresult(buffer.as<::Windows::Storage::Streams::IBufferByteAccess>()->Buffer(&bytes));
+                    std::memcpy(bytes, m_requestBody.data(), m_requestBody.size());
+                }
+                Web::Http::HttpBufferContent content{buffer};
+                if (contentType)
+                {
+                    content.Headers().ContentType(Web::Http::Headers::HttpMediaTypeHeaderValue::Parse(winrt::to_hstring(*contentType)));
+                }
+                requestMessage.Content(content);
             }
+
+            m_requestHeaders.clear();
 
             Web::Http::HttpClient client;
             return arcana::create_task<std::exception_ptr>(client.SendRequestAsync(requestMessage))
@@ -128,9 +137,11 @@ namespace UrlLib
                         m_headers.insert(std::make_pair(winrt::to_string(iter.Key()), winrt::to_string(iter.Value())));
                     }
                     // process the content type response header
-                    std::string contentTypeValue = winrt::to_string(responseMessage.Content().Headers().ContentType().ToString());
-                    std::string contentTypeKey = "content-type";
-                    m_headers.insert(std::make_pair(contentTypeKey, contentTypeValue));
+                    const auto contentType = responseMessage.Content().Headers().ContentType();
+                    if (contentType)
+                    {
+                        m_headers.emplace("content-type", winrt::to_string(contentType.ToString()));
+                    }
 
                     switch (m_responseType)
                     {
