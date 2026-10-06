@@ -202,15 +202,11 @@ namespace
         uint16_t m_port;
     };
 
-    // A loopback TCP server that accepts connections but never responds, so an HTTP request to it
-    // hangs until it is aborted. A background thread accept()s connections and holds them open
-    // until teardown. Used to verify that UrlRequest::Abort() interrupts an in-flight request
-    // rather than waiting for the transport's own timeout. Non-movable: the accept thread captures
-    // `this`.
-    class HangingServer
+    // Without a response, hold connections open until teardown to test cancellation.
+    class LoopbackServer
     {
     public:
-        HangingServer()
+        explicit LoopbackServer(std::string response = {})
         {
             if (!EnsureSocketsInitialized())
             {
@@ -238,7 +234,7 @@ namespace
 
             m_listener = listener;
             m_port = ntohs(address.sin_port);
-            m_acceptThread = std::thread{[this]() {
+            m_acceptThread = std::thread{[this, response = std::move(response)]() {
                 for (;;)
                 {
                     NativeSocket connection = ::accept(m_listener, nullptr, nullptr);
@@ -246,17 +242,60 @@ namespace
                     {
                         break; // listener closed during teardown
                     }
-                    m_accepted.push_back(connection); // hold open, never respond
+                    m_accepted.push_back(connection);
+                    if (!response.empty())
+                    {
+#if defined(_WIN32)
+                        DWORD timeout{2000};
+                        setsockopt(connection, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout));
+                        setsockopt(connection, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout));
+#else
+                        timeval timeout{2, 0};
+                        setsockopt(connection, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+                        setsockopt(connection, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+#endif
+#if defined(__APPLE__)
+                        int noSignal{1};
+                        setsockopt(connection, SOL_SOCKET, SO_NOSIGPIPE, &noSignal, sizeof(noSignal));
+#endif
+                        std::string headers;
+                        char buffer[1024];
+                        while (headers.find("\r\n\r\n") == std::string::npos && headers.size() < 8192)
+                        {
+                            const auto count = recv(connection, buffer, sizeof(buffer), 0);
+                            if (count <= 0)
+                            {
+                                break;
+                            }
+                            headers.append(buffer, static_cast<size_t>(count));
+                        }
+                        size_t offset{};
+                        while (offset < response.size())
+                        {
+#if defined(MSG_NOSIGNAL)
+                            constexpr int flags = MSG_NOSIGNAL;
+#else
+                            constexpr int flags = 0;
+#endif
+                            const auto count = send(connection, response.data() + offset, static_cast<int>(response.size() - offset), flags);
+                            if (count <= 0)
+                            {
+                                break;
+                            }
+                            offset += static_cast<size_t>(count);
+                        }
+                        ShutdownSocket(connection);
+                    }
                 }
             }};
         }
 
-        HangingServer(const HangingServer&) = delete;
-        HangingServer& operator=(const HangingServer&) = delete;
-        HangingServer(HangingServer&&) = delete;
-        HangingServer& operator=(HangingServer&&) = delete;
+        LoopbackServer(const LoopbackServer&) = delete;
+        LoopbackServer& operator=(const LoopbackServer&) = delete;
+        LoopbackServer(LoopbackServer&&) = delete;
+        LoopbackServer& operator=(LoopbackServer&&) = delete;
 
-        ~HangingServer()
+        ~LoopbackServer()
         {
             if (m_listener != InvalidSocket)
             {
@@ -345,6 +384,91 @@ TEST(UrlRequestErrorReporting, SuccessfulLocalFileReportsNoError)
     EXPECT_TRUE(request.ErrorSymbol().empty()) << request.ErrorSymbol();
     EXPECT_EQ(request.ErrorCode(), 0);
 }
+
+#if !defined(_WIN32)
+// The WinRT backend currently returns non-2xx responses without reading their bodies.
+TEST(UrlRequestErrorReporting, CompletedAndTruncatedHttpBodies)
+{
+    for (const auto responseType : {UrlLib::UrlResponseType::String, UrlLib::UrlResponseType::Buffer})
+    {
+        for (const int status : {200, 404})
+        {
+            for (const bool truncated : {false, true})
+            {
+                SCOPED_TRACE(std::to_string(status) + (truncated ? " truncated" : " complete") +
+                    (responseType == UrlLib::UrlResponseType::String ? " text" : " buffer"));
+                LoopbackServer server{"HTTP/1.1 " + std::to_string(status) +
+                    (status == 404 ? " Not Found\r\n" : " OK\r\n") +
+                    "Content-Length: " + (truncated ? "100" : "5") +
+                    "\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nhello"};
+                ASSERT_TRUE(server.Valid());
+                UrlLib::UrlRequest request{};
+                request.Open(UrlLib::UrlMethod::Get, server.Url());
+                request.ResponseType(responseType);
+                ASSERT_TRUE(SendAndWait(request));
+                EXPECT_EQ(static_cast<int>(request.StatusCode()), truncated ? 0 : status);
+                if (truncated)
+                {
+                    EXPECT_FALSE(request.ErrorString().empty());
+#if defined(__APPLE__)
+                    EXPECT_TRUE(request.ResponseString().empty());
+                    EXPECT_TRUE(request.ResponseBuffer().empty());
+                    EXPECT_TRUE(request.GetAllResponseHeaders().empty());
+#endif
+                    continue;
+                }
+                EXPECT_TRUE(request.ErrorString().empty());
+                if (responseType == UrlLib::UrlResponseType::String)
+                {
+                    EXPECT_EQ(request.ResponseString(), "hello");
+                }
+                else
+                {
+                    const auto bytes = request.ResponseBuffer();
+                    EXPECT_EQ(std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size()), "hello");
+                }
+            }
+        }
+    }
+}
+#endif
+
+#if defined(__APPLE__)
+TEST(UrlRequestErrorReporting, BodyLengthChecksPreserveEncodedAndBodylessResponses)
+{
+    // gzip("hello"): its 25 wire bytes must not be compared with the 5 decoded bytes.
+    const std::string gzip{"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x0a\xcb\x48\xcd\xc9\xc9\x07\x00\x86\xa6\x10\x36\x05\x00\x00\x00", 25};
+    struct TestCase
+    {
+        int status;
+        std::string headers;
+        std::string body;
+        std::string expected;
+    };
+    const TestCase cases[]{
+        {200, "Content-Length: 25\r\nContent-Encoding: gzip\r\n", gzip, "hello"},
+        {404, "Content-Length: 25\r\nContent-Encoding: gzip\r\n", gzip, "hello"},
+        {200, "Transfer-Encoding: chunked\r\n", "5\r\nhello\r\n0\r\n\r\n", "hello"},
+        {404, "Transfer-Encoding: chunked\r\n", "5\r\nhello\r\n0\r\n\r\n", "hello"},
+        {204, "", "", ""},
+        {304, "Content-Length: 100\r\n", "", ""},
+        {404, "Content-Length: 0\r\n", "", ""},
+    };
+    for (const auto& test : cases)
+    {
+        SCOPED_TRACE(std::to_string(test.status) + " " + test.headers);
+        LoopbackServer server{"HTTP/1.1 " + std::to_string(test.status) +
+            " Response\r\n" + test.headers + "Connection: close\r\n\r\n" + test.body};
+        ASSERT_TRUE(server.Valid());
+        UrlLib::UrlRequest request{};
+        request.Open(UrlLib::UrlMethod::Get, server.Url());
+        ASSERT_TRUE(SendAndWait(request));
+        EXPECT_EQ(static_cast<int>(request.StatusCode()), test.status) << request.ErrorString();
+        EXPECT_EQ(request.ResponseString(), test.expected);
+        EXPECT_TRUE(request.ErrorString().empty());
+    }
+}
+#endif
 
 TEST(UrlRequestErrorReporting, MissingLocalFileReportsError)
 {
@@ -465,7 +589,7 @@ TEST(UrlRequestErrorReporting, AbortInterruptsInFlightRequest)
     // symbol assertions below are gated to the backends that do.
     SKIP_WITHOUT_TRANSPORT_ERROR_DETAIL();
 
-    HangingServer server{};
+    LoopbackServer server{};
     ASSERT_TRUE(server.Valid());
 
     UrlLib::UrlRequest request{};

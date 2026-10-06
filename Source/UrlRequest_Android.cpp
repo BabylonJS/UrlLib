@@ -4,6 +4,7 @@
 #include <android/asset_manager.h>
 #include <AndroidExtensions/Globals.h>
 #include <AndroidExtensions/JavaWrappers.h>
+#include <algorithm>
 
 using namespace android::global;
 using namespace android::net;
@@ -15,6 +16,29 @@ namespace UrlLib
 {
     namespace
     {
+        void ThrowIfFaulted(JNIEnv* env)
+        {
+            if (auto error = env->ExceptionOccurred())
+            {
+                env->ExceptionClear();
+                auto release = gsl::finally([&] { env->DeleteLocalRef(error); });
+                throw Throwable{error};
+            }
+        }
+
+        jobject GetResponseStream(URLConnection& connection, int statusCode)
+        {
+            auto env = GetEnvForCurrentThread();
+            // HttpURLConnection throws for HTTP error responses via getInputStream;
+            // their bodies are still successful transfers, exposed by getErrorStream.
+            auto method = env->GetMethodID(connection.GetClass(),
+                statusCode >= 400 ? "getErrorStream" : "getInputStream", "()Ljava/io/InputStream;");
+            ThrowIfFaulted(env);
+            auto stream = env->CallObjectMethod(connection, method);
+            ThrowIfFaulted(env);
+            return stream;
+        }
+
         template<typename T> void LoadAsset(AAssetManager* assetManager, const char* url, T& data)
         {
             AAsset* asset = AAssetManager_open(assetManager, url, AASSET_MODE_UNKNOWN);
@@ -121,13 +145,10 @@ namespace UrlLib
                         }
 
                         connection.Connect();
+                        int statusCode = static_cast<int>(UrlStatusCode::Ok);
                         if (connection.GetClass().IsAssignableFrom(HttpURLConnection::Class()))
                         {
-                            m_statusCode = static_cast<UrlStatusCode>(((HttpURLConnection)connection).GetResponseCode());
-                        }
-                        else
-                        {
-                            m_statusCode = UrlStatusCode::Ok;
+                            statusCode = ((HttpURLConnection)connection).GetResponseCode();
                         }
 
                         for (int n = 0;; ++n)
@@ -145,20 +166,38 @@ namespace UrlLib
                             m_headers.insert({lowerCaseKey, value});
                         }
 
-                        int contentLength = connection.GetContentLength();
-                        if (contentLength < 0)
-                        {
-                            contentLength = 0;
-                        }
-
-                        InputStream inputStream{connection.GetInputStream()};
-                        ByteArrayOutputStream byteArrayOutputStream{contentLength};
+                        const int contentLength = connection.GetContentLength();
+                        auto env = GetEnvForCurrentThread();
+                        auto stream = GetResponseStream(connection, statusCode);
+                        auto releaseStream = gsl::finally([&] { env->DeleteLocalRef(stream); });
+                        ByteArrayOutputStream byteArrayOutputStream{std::max(contentLength, 0)};
+                        ThrowIfFaulted(env);
 
                         ByteArray byteArray{4096};
-                        int bytesRead{};
-                        while ((bytesRead = inputStream.Read(byteArray)) != -1)
+                        ThrowIfFaulted(env);
+                        size_t totalBytesRead{};
+                        if (stream)
                         {
-                            byteArrayOutputStream.Write(byteArray, 0, bytesRead);
+                            InputStream inputStream{stream};
+                            while (true)
+                            {
+                                const int bytesRead = inputStream.Read(byteArray);
+                                // The pinned InputStream wrapper leaves read exceptions pending.
+                                // Check before making another JNI call or interpreting its result.
+                                ThrowIfFaulted(env);
+                                if (bytesRead == -1)
+                                {
+                                    break;
+                                }
+                                byteArrayOutputStream.Write(byteArray, 0, bytesRead);
+                                ThrowIfFaulted(env);
+                                totalBytesRead += static_cast<size_t>(bytesRead);
+                            }
+                        }
+                        if (statusCode != 204 && statusCode != 304 &&
+                            contentLength >= 0 && totalBytesRead != static_cast<size_t>(contentLength))
+                        {
+                            throw std::runtime_error{"Response body ended before Content-Length bytes were received"};
                         }
 
                         switch (m_responseType)
@@ -166,12 +205,16 @@ namespace UrlLib
                             case UrlResponseType::String:
                             {
                                 // TODO: use the charset from the content type?
-                                m_responseString = byteArrayOutputStream.ToString("UTF-8");
+                                auto text = byteArrayOutputStream.ToString("UTF-8");
+                                ThrowIfFaulted(env);
+                                m_responseString = text;
                                 break;
                             }
                             case UrlResponseType::Buffer:
                             {
-                                m_responseBuffer = byteArrayOutputStream.ToByteArray();
+                                auto bytes = byteArrayOutputStream.ToByteArray();
+                                ThrowIfFaulted(env);
+                                m_responseBuffer = bytes;
                                 break;
                             }
                             default:
@@ -182,11 +225,21 @@ namespace UrlLib
 
                         // Must happen after getting the content to get the redirected URL.
                         m_responseUrl = connection.GetURL().ToString();
+                        ThrowIfFaulted(env);
+                        m_statusCode = static_cast<UrlStatusCode>(statusCode);
                     }
                 }
-                catch (const Throwable&)
+                catch (const Throwable& error)
                 {
-                    // Catch Java exceptions, but retain the default status code of 0 to indicate a client side error.
+                    ResetForOpen();
+                    m_responseBuffer.clear();
+                    SetError("java", "JavaException", 0, error.what());
+                }
+                catch (const std::exception& error)
+                {
+                    ResetForOpen();
+                    m_responseBuffer.clear();
+                    SetError("urllib", "ResponseReadFailed", 0, error.what());
                 }
             });
         }
