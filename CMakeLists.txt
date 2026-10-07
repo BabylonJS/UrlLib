@@ -8,6 +8,9 @@ include(FetchContent)
 FetchContent_Declare(arcana.cpp
     GIT_REPOSITORY https://github.com/microsoft/arcana.cpp.git
     GIT_TAG        7c6be8aaa29effbc8ee1a2217388fb6e399150d2)
+FetchContent_Declare(base-n
+    GIT_REPOSITORY https://github.com/azawadzki/base-n.git
+    GIT_TAG        7573e77c0b9b0e8a5fb63d96dbde212c921993b4)
 FetchContent_Declare(AndroidExtensions
     GIT_REPOSITORY https://github.com/BabylonJS/AndroidExtensions.git
     GIT_TAG        2e85a8d43b89246c460112c9e5546ad54b6e87b4)
@@ -31,6 +34,7 @@ endif()
 project(UrlLib)
 
 FetchContent_MakeAvailable_With_Message(arcana.cpp)
+FetchContent_MakeAvailable_With_Message(base-n)
 
 if(ANDROID)
     FetchContent_MakeAvailable_With_Message(AndroidExtensions)
@@ -81,6 +85,7 @@ endif()
 set(SOURCES
     "Include/UrlLib/UrlLib.h"
     "Source/UrlRequest_Base.h"
+    "Source/DataUrl.h"
     "Source/UrlRequest_Shared.h"
     "Source/WebSocket_Base.h"
     "Source/WebSocket_Shared.h"
@@ -90,6 +95,7 @@ add_library(UrlLib ${SOURCES})
 
 target_include_directories(UrlLib PUBLIC "Include")
 target_include_directories(UrlLib PRIVATE "Source")
+target_include_directories(UrlLib PRIVATE "${base-n_SOURCE_DIR}/include")
 
 target_link_libraries(UrlLib
     PUBLIC arcana
