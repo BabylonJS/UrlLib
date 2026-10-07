@@ -106,6 +106,11 @@ Apple POST also preserves body bytes, using length-aware NSData rather than a
 NUL-terminated UTF-8 string. The shared POST wire tests run on Windows and Apple;
 Linux explicitly skips them because its backend does not implement POST yet.
 
+Android POST writes raw byte-array chunks to the connection's output stream instead of
+converting the body to a Java string. This preserves embedded NULs and UTF-8 bytes while
+keeping Content-Length consistent with the supplied body. Android coverage comes from
+JsRuntimeHost's Fetch/XHR HTTP transport tests.
+
 ## Contributing
 
 Please read [CONTRIBUTING.md](./CONTRIBUTING.md) for details on our code of conduct, and 
